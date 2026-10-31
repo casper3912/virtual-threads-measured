@@ -1,0 +1,8 @@
+{"probe": "cold-storm", "scenario": "rc-vt", "n": 100, "ms": 436, "forwarded": 200, "calls": 200, "error": null}
+{"probe": "cold-storm", "scenario": "rc-vt", "n": 200, "ms": 695, "forwarded": 400, "calls": 400, "error": null}
+{"probe": "cold-storm", "scenario": "rc-vt", "n": 500, "ms": 997, "forwarded": 1000, "calls": 1000, "error": null}
+{"probe": "cold-storm", "scenario": "rc-vt", "n": 1000, "ms": 1563, "forwarded": 2000, "calls": 2000, "error": null}
+{"probe": "cold-storm", "scenario": "rc-vt-limit", "n": 100, "ms": 274, "forwarded": 200, "calls": 200, "error": null}
+{"probe": "cold-storm", "scenario": "rc-vt-limit", "n": 200, "ms": 515, "forwarded": 400, "calls": 400, "error": null}
+{"probe": "cold-storm", "scenario": "rc-vt-limit", "n": 500, "ms": 813, "forwarded": 1000, "calls": 1000, "error": null}
+{"probe": "cold-storm", "scenario": "rc-vt-limit", "n": 1000, "ms": 1190, "forwarded": 2000, "calls": 2000, "error": null}

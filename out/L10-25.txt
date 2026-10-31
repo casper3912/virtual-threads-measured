@@ -1,0 +1,1 @@
+JDK 25: jdk.VirtualThreadPinned events = 0

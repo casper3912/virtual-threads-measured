@@ -1,0 +1,4 @@
+a: VirtualThread[#19,vt-a]/runnable@ForkJoinPool-1-worker-1
+b: isVirtual=true
+c: daemon=true
+main: Thread[#1,main,5,main] isVirtual=false

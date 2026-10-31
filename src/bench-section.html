@@ -1,0 +1,92 @@
+<h2 id="bench">12. GET requests: for loop vs CompletableFuture vs virtual threads</h2>
+<p>This is the comparison most teams actually need: a handler has to make a batch of outbound GET calls and forward the caller's identity on every one. The benchmark runs the same job eight ways, on three JDKs in the cloud and two JDKs on the Windows desktop, and checks every response to confirm the headers arrived. <span class="tag m">MEASURED</span></p>
+
+<h3 id="bench-setup">The workload</h3>
+<ul>
+<li><b>N tasks</b> (200 or 1,000). Each task calls <code>GET /item/{i}</code>, then a dependent <code>GET /item/{i}/price</code>, so a run makes 2N calls.</li>
+<li><b>A local echo server</b> in its own JVM waits 20 ms per request, standing in for a real backend. It sends back the headers it received.</li>
+<li><b>Context forwarded on every call:</b> <code>X-Request-Id</code>, <code>X-Tenant-Id</code>, <code>Authorization: Bearer …</code> and a W3C <code>traceparent</code> (same trace ID, new span ID per call). A call counts as forwarded only if the server echoed all four.</li>
+<li><b>Timing:</b> one warm-up run, then the median of three runs. Peak <em>platform</em> threads come from <code>ThreadMXBean</code>, which doesn't count virtual threads.</li>
+<li><b>Same bytecode on every JDK:</b> the core benchmark is compiled once with <code>--release 21</code>. The ScopedValue variant is compiled per JDK because <code>StructuredTaskScope</code> is still preview.</li>
+</ul>
+<p class="small">With perfect concurrency a task takes about 2 × 20 = 40 ms, so the best possible time for any N is roughly 40 ms plus overhead. In practice the floor is set by how fast the machine can push 400 or 2,000 HTTP exchanges through one client and one server.</p>
+
+<h3 id="bench-code">The eight methods, and how each forwards the context</h3>
+<p>Every method builds its requests with the same helper. The only question is <em>which</em> <code>Ctx</code> it has in hand when it builds one:</p>
+<pre><code>record Ctx(String requestId, String tenant, String bearer, String traceId) {}
+
+static HttpRequest get(Ctx ctx, int i, String suffix) {
+    var b = HttpRequest.newBuilder(URI.create(base + "/item/" + i + suffix)).GET();
+    if (ctx != null) {
+        b.header("X-Request-Id", ctx.requestId())
+         .header("X-Tenant-Id", ctx.tenant())
+         .header("Authorization", "Bearer " + ctx.bearer())
+         .header("traceparent", "00-" + ctx.traceId() + "-" + newSpanId() + "-01");
+    }
+    return b.build();
+}</code></pre>
+<div class="tablewrap"><table>
+<tr><th>Method</th><th>Core of the code (simplified from <code>bench/GetBench.java</code>)</th></tr>
+<tr><td><b>for loop</b></td><td><code>for (i…) { send(get(ctx,i,"")); send(get(ctx,i,"/price")); }</code></td></tr>
+<tr><td><b>CF + sendAsync</b></td><td><code>client.sendAsync(get(ctx,i,"")).thenCompose(r -&gt; client.sendAsync(get(ctx,i,"/price")))</code>, then <code>allOf(…).join()</code></td></tr>
+<tr><td><b>CF + 64-thread pool</b></td><td><code>runAsync(() -&gt; { send(…); send(…); }, Executors.newFixedThreadPool(64))</code></td></tr>
+<tr><td><b>CF + common pool</b></td><td><code>runAsync(() -&gt; { send(…); send(…); })</code>, which uses <code>ForkJoinPool.commonPool()</code></td></tr>
+<tr><td><b>Virtual threads</b></td><td><code>try (var ex = newVirtualThreadPerTaskExecutor()) { ex.submit(() -&gt; { send(…); send(…); }); }</code></td></tr>
+<tr><td><b>VT + client on VT executor</b></td><td>Same, but the client is built with <code>HttpClient.newBuilder().executor(newVirtualThreadPerTaskExecutor())</code></td></tr>
+<tr><td><b>VT + synchronized wrapper</b></td><td>Same, but each call goes through <code>synchronized String fetch(req) { return send(req); }</code>, as old SDKs, drivers and caches do</td></tr>
+<tr><td><b>StructuredTaskScope + ScopedValue</b></td><td><code>ScopedValue.where(CTX, ctx).call(() -&gt; { try (var s = StructuredTaskScope.open()) { s.fork(…); s.join(); } })</code>, and <code>get()</code> reads <code>CTX.get()</code> (JDK 25+, preview)</td></tr>
+</table></div>
+<details><summary>Full benchmark sources (echo server, benchmark, ScopedValue variant, driver)</summary>
+<p class="small"><b>bench/EchoServer.java</b></p><pre><code>{{SRC:EchoServer.java}}</code></pre>
+<p class="small"><b>bench/GetBench.java</b></p><pre><code>{{SRC:GetBench.java}}</code></pre>
+<p class="small"><b>bench/GetBenchScoped.java</b></p><pre><code>{{SRC:GetBenchScoped.java}}</code></pre>
+<p class="small"><b>bench/run_bench.py</b> runs the whole matrix: <code>python bench/run_bench.py --jdk 21=&lt;home&gt; --jdk 26=&lt;home&gt;</code>. Add <code>--quick</code> for a one-minute smoke test.</p>
+</details>
+
+<h3 id="bench-results">Results</h3>
+<div class="widget" id="benchw">
+  <div class="controls">
+    <label>Machine<select id="b-machine"><option value="desktop">Windows desktop (16 threads)</option><option value="container">Cloud (2 vCPU)</option></select></label>
+    <label>Tasks (N)<select id="b-n"><option value="200">200 (400 calls)</option><option value="1000">1,000 (2,000 calls)</option></select></label>
+    <label>Show<select id="b-metric"><option value="medianMs">time (median ms)</option><option value="peakPlatformThreads">peak platform threads</option></select></label>
+  </div>
+  <div class="legend" id="b-legend"></div>
+  <div id="b-chart">Enable scripts for the chart. The same numbers are in the tables below.</div>
+  <p class="small">Time is on a log scale. A red label means the run failed, or finished without forwarding the headers.</p>
+</div>
+<p><b>Windows desktop</b> (Intel Core i7-1260P, 16 logical CPUs, Windows 11; Temurin 21.0.11 and OpenJDK 26+35). Each cell shows median time · peak platform threads. <span class="tag m">MEASURED</span></p>
+{{BENCH_TABLE:desktop}}
+<p><b>Cloud container</b> (2-vCPU Intel Xeon @ 2.30 GHz, Linux; OpenJDK 21.0.12, Temurin 25.0.5, Temurin 27.0.1). <span class="tag m">MEASURED</span></p>
+{{BENCH_TABLE:container}}
+
+<h3 id="bench-findings">What the numbers say</h3>
+<ol>
+<li><b>Any concurrency beats the loop by about 100×.</b> The for loop made 400 calls in {{B:desktop:21:loop:200}} on the Windows desktop and {{B:container:21:loop:200}} in the cloud. Every concurrent method that didn't pin finished the same 400 calls in 88–343 ms, on either machine and any JDK. <span class="tag m">MEASURED</span></li>
+<li><b>Among concurrent methods, the differences are small</b> as long as nothing pins and nothing is pool-limited. At 1,000 tasks on the Windows desktop (JDK 26): sendAsync {{B:desktop:26:cf-async:1000}}, virtual threads {{B:desktop:26:vt:1000}}, VT with a VT-backed client {{B:desktop:26:vt-vtclient:1000}}, structured scope {{B:desktop:26:sts:1000}}. The case for virtual threads is that the code stays a plain loop of blocking calls, not that they're faster than a well-written async chain. <span class="tag m">MEASURED</span></li>
+<li><b>A fixed pool is a speed limit, and Little's law predicts it.</b> 1,000 tasks in waves of 64 is 16 waves. On the Windows desktop, each 2-call task took about 62 ms (see 5), so 16 × 62 ≈ 990 ms; the measured times were {{B:desktop:21:cf-pool:1000}} and {{B:desktop:26:cf-pool:1000}}. <span class="tag m">MEASURED</span></li>
+<li><b>Pinning is the version difference that matters.</b> With the <code>synchronized</code> wrapper, JDK 21 took {{B:desktop:21:vt-sync:1000}} for 1,000 tasks on the 16-thread Windows desktop and {{B:container:21:vt-sync:1000}} on 2 vCPUs. JDK 26 took {{B:desktop:26:vt-sync:1000}}, and JDK 25 and 27 in the cloud took {{B:container:25:vt-sync:1000}} and {{B:container:27:vt-sync:1000}}. On 21, throughput falls to one call per carrier, so the damage grows as the core count shrinks. <span class="tag m">MEASURED</span></li>
+<li><b>The Windows timer showed up in the loop.</b> Each sequential call took about {{PER_CALL:desktop}} ms on Windows versus {{PER_CALL:container}} ms on Linux for a 20 ms sleep. That fits Windows' default 15.6 ms timer tick: two ticks is 31.25 ms. It shifts the absolute desktop numbers, not the comparisons. <span class="tag i">INFERRED</span></li>
+<li><b>Blocking on the common pool can fail outright.</b> <code>runAsync</code> without an executor at 1,000 tasks threw <code>RejectedExecutionException: Thread limit exceeded replacing blocked worker</code> on JDK 21 and 26 on the Windows desktop, and on 25 and 27 in the cloud. Only cloud JDK 21 survived, by growing to {{BT:container:21:cf-common:1000}} platform threads. The common pool adds threads to make up for blocked workers, but only up to a limit. Never put blocking calls on it. <span class="tag m">MEASURED</span></li>
+<li><b><code>HttpClient</code> brings its own platform threads.</b> Even when you call the blocking <code>send()</code> from virtual threads, the default client hands work to an internal cached thread pool: {{BT:desktop:26:vt:1000}} peak platform threads on the Windows desktop. Giving the client a virtual-thread executor cut that to {{BT:desktop:26:vt-vtclient:1000}} at no cost in time. <span class="tag m">MEASURED</span></li>
+<li><b>Other differences between JDK versions weren't consistent.</b> For example, sendAsync at 1,000 tasks was faster on 25 than 21 in the cloud ({{B:container:25:cf-async:1000}} vs {{B:container:21:cf-async:1000}}) but slower on 26 than 21 on the Windows desktop ({{B:desktop:26:cf-async:1000}} vs {{B:desktop:21:cf-async:1000}}). Treat gaps under 2× as noise unless they repeat on your hardware. <span class="tag m">MEASURED</span></li>
+</ol>
+
+<h3 id="forwarding">Header and context forwarding: what survives a thread hop</h3>
+<p>Performance only counts if every call carries the right identity. Most Java code keeps the current request in a <code>ThreadLocal</code> (Spring's <code>RequestContextHolder</code>, SLF4J's MDC, many security contexts). This table runs each method in the naive style: the request is built from <code>ThreadLocal.get()</code> wherever the code happens to be running. It also shows <code>ScopedValue</code> with and without a structured scope. <span class="tag m">MEASURED</span></p>
+{{CTX_TABLE}}
+<ul>
+<li><b>ThreadLocal context only survives where no thread changes.</b> The loop kept it. sendAsync lost it on exactly half the calls: the first request is built on the caller's thread, but the dependent second request is built inside <code>thenCompose</code> on one of the client's threads. Pools, the common pool and virtual threads lost it on every call.</li>
+<li><b>Virtual threads don't fix this by themselves.</b> A new virtual thread starts with empty <code>ThreadLocal</code>s, just like a pool thread.</li>
+<li><b><code>ScopedValue</code> reaches structured subtasks only.</b> Forks of a <code>StructuredTaskScope</code> inherited it on every call. The same binding submitted to a plain virtual-thread executor reached none of them.</li>
+<li><b>The pattern that works everywhere is explicit capture.</b> All the timing results above read the context into a local variable on the request thread before fanning out. Every one of those runs forwarded all four headers on every call (the self-tests check this).</li>
+</ul>
+<div class="callout"><b>Recommended shape for a handler that fans out GETs on JDK 25+:</b>
+<pre><code>Ctx ctx = Ctx.from(inboundRequest);                    // capture once, on the request thread
+try (var exec = Executors.newVirtualThreadPerTaskExecutor()) {
+    var futures = ids.stream()
+        .map(id -&gt; exec.submit(() -&gt; send(get(ctx, id, "")))) // ctx travels as a value
+        .toList();
+    // collect results...
+}
+// with an HttpClient built once:  HttpClient.newBuilder().executor(Executors.newVirtualThreadPerTaskExecutor())</code></pre>
+If your logging or security code reads a <code>ThreadLocal</code> such as MDC, restore it at the start of each task: <code>MDC.setContextMap(captured)</code> and clear it in <code>finally</code>. Or move that context to a <code>ScopedValue</code> and use <code>StructuredTaskScope</code> once it's final. <span class="tag i">INFERRED</span></div>

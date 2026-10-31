@@ -1,0 +1,2 @@
+JDK 21: jdk.VirtualThreadPinned events = 4
+  duration 44 ms, top frame parkOnCarrierThread

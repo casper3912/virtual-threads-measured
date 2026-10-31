@@ -1,0 +1,4 @@
+cores=2, tasks=8 (each round, after warm-up)
+round 1: platform pool  150 ms | virtual per task  154 ms
+round 2: platform pool  173 ms | virtual per task  161 ms
+round 3: platform pool  158 ms | virtual per task  163 ms

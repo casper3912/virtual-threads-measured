@@ -1,0 +1,68 @@
+{"jdk": 21, "method": "loop", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [8746, 8614, 8488], "medianMs": 8614, "forwarded": 400, "peakPlatformThreads": 11, "cores": 2, "latencyMs": 20}
+{"jdk": 21, "method": "cf-async", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [487, 343, 337], "medianMs": 343, "forwarded": 400, "peakPlatformThreads": 86, "cores": 2, "latencyMs": 20}
+{"jdk": 21, "method": "cf-pool", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [301, 244, 238], "medianMs": 244, "forwarded": 400, "peakPlatformThreads": 116, "cores": 2, "latencyMs": 20}
+{"jdk": 21, "method": "cf-common", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [386, 237, 213], "medianMs": 237, "forwarded": 400, "peakPlatformThreads": 209, "cores": 2, "latencyMs": 20}
+{"jdk": 21, "method": "vt", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [297, 189, 153], "medianMs": 189, "forwarded": 400, "peakPlatformThreads": 72, "cores": 2, "latencyMs": 20}
+{"jdk": 21, "method": "vt-vtclient", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [313, 186, 179], "medianMs": 186, "forwarded": 400, "peakPlatformThreads": 9, "cores": 2, "latencyMs": 20}
+{"jdk": 21, "method": "vt-sync", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [4345, 4309, 4264], "medianMs": 4309, "forwarded": 400, "peakPlatformThreads": 15, "cores": 2, "latencyMs": 20}
+{"jdk": 21, "method": "cf-async", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [1648, 1252, 1319], "medianMs": 1319, "forwarded": 2000, "peakPlatformThreads": 175, "cores": 2, "latencyMs": 20}
+{"jdk": 21, "method": "cf-pool", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [951, 801, 741], "medianMs": 801, "forwarded": 2000, "peakPlatformThreads": 115, "cores": 2, "latencyMs": 20}
+{"jdk": 21, "method": "cf-common", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [1161, 683, 653], "medianMs": 683, "forwarded": 2000, "peakPlatformThreads": 591, "cores": 2, "latencyMs": 20}
+{"jdk": 21, "method": "vt", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [900, 476, 342], "medianMs": 476, "forwarded": 2000, "peakPlatformThreads": 105, "cores": 2, "latencyMs": 20}
+{"jdk": 21, "method": "vt-vtclient", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [1050, 527, 401], "medianMs": 527, "forwarded": 2000, "peakPlatformThreads": 9, "cores": 2, "latencyMs": 20}
+{"jdk": 21, "method": "vt-sync", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [21207, 20765, 20708], "medianMs": 20765, "forwarded": 2000, "peakPlatformThreads": 16, "cores": 2, "latencyMs": 20}
+{"jdk": 21, "method": "loop", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [2160], "medianMs": 2160, "forwarded": 100, "peakPlatformThreads": 10, "cores": 2, "latencyMs": 20}
+{"jdk": 21, "method": "cf-async", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [92], "medianMs": 92, "forwarded": 50, "peakPlatformThreads": 42, "cores": 2, "latencyMs": 20}
+{"jdk": 21, "method": "cf-pool", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [79], "medianMs": 79, "forwarded": 0, "peakPlatformThreads": 92, "cores": 2, "latencyMs": 20}
+{"jdk": 21, "method": "cf-common", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [76], "medianMs": 76, "forwarded": 0, "peakPlatformThreads": 108, "cores": 2, "latencyMs": 20}
+{"jdk": 21, "method": "vt", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [76], "medianMs": 76, "forwarded": 0, "peakPlatformThreads": 41, "cores": 2, "latencyMs": 20}
+{"jdk": 21, "method": "vt-vtclient", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [89], "medianMs": 89, "forwarded": 0, "peakPlatformThreads": 9, "cores": 2, "latencyMs": 20}
+{"jdk": 21, "method": "vt-sync", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [1081], "medianMs": 1081, "forwarded": 0, "peakPlatformThreads": 14, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "loop", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [8539, 8440, 8387], "medianMs": 8440, "forwarded": 400, "peakPlatformThreads": 11, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "cf-async", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [207, 155, 155], "medianMs": 155, "forwarded": 400, "peakPlatformThreads": 64, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "cf-pool", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [261, 249, 203], "medianMs": 249, "forwarded": 400, "peakPlatformThreads": 126, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "cf-common", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [247, 195, 153], "medianMs": 195, "forwarded": 400, "peakPlatformThreads": 177, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "vt", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [225, 150, 129], "medianMs": 150, "forwarded": 400, "peakPlatformThreads": 74, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "vt-vtclient", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [255, 176, 144], "medianMs": 176, "forwarded": 400, "peakPlatformThreads": 10, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "vt-sync", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [268, 185, 126], "medianMs": 185, "forwarded": 400, "peakPlatformThreads": 85, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "sts", "n": 200, "calls": 400, "mode": "scoped", "runsMs": [227, 143, 116], "medianMs": 143, "forwarded": 400, "peakPlatformThreads": 68, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "vt-scoped", "n": 200, "calls": 400, "mode": "scoped", "runsMs": [250, 191, 133], "medianMs": 191, "forwarded": 0, "peakPlatformThreads": 78, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "cf-async", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [863, 594, 436], "medianMs": 594, "forwarded": 2000, "peakPlatformThreads": 150, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "cf-pool", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [886, 765, 741], "medianMs": 765, "forwarded": 2000, "peakPlatformThreads": 120, "cores": 2, "latencyMs": 20}
+{"error": "Caused by: java.util.concurrent.RejectedExecutionException: Thread limit exceeded replacing blocked worker", "jdk": 25, "method": "cf-common", "n": 1000, "calls": 2000, "mode": "explicit", "medianMs": null, "forwarded": 0, "peakPlatformThreads": null, "latencyMs": 20}
+{"jdk": 25, "method": "vt", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [874, 483, 395], "medianMs": 483, "forwarded": 2000, "peakPlatformThreads": 165, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "vt-vtclient", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [928, 368, 420], "medianMs": 420, "forwarded": 2000, "peakPlatformThreads": 10, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "vt-sync", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [1005, 465, 335], "medianMs": 465, "forwarded": 2000, "peakPlatformThreads": 118, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "sts", "n": 1000, "calls": 2000, "mode": "scoped", "runsMs": [912, 529, 421], "medianMs": 529, "forwarded": 2000, "peakPlatformThreads": 112, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "vt-scoped", "n": 1000, "calls": 2000, "mode": "scoped", "runsMs": [898, 492, 431], "medianMs": 492, "forwarded": 0, "peakPlatformThreads": 161, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "loop", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [2162], "medianMs": 2162, "forwarded": 100, "peakPlatformThreads": 11, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "cf-async", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [88], "medianMs": 88, "forwarded": 50, "peakPlatformThreads": 55, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "cf-pool", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [86], "medianMs": 86, "forwarded": 0, "peakPlatformThreads": 85, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "cf-common", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [78], "medianMs": 78, "forwarded": 0, "peakPlatformThreads": 80, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "vt", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [72], "medianMs": 72, "forwarded": 0, "peakPlatformThreads": 47, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "vt-vtclient", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [85], "medianMs": 85, "forwarded": 0, "peakPlatformThreads": 10, "cores": 2, "latencyMs": 20}
+{"jdk": 25, "method": "vt-sync", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [78], "medianMs": 78, "forwarded": 0, "peakPlatformThreads": 45, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "loop", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [8601, 8494, 8417], "medianMs": 8494, "forwarded": 400, "peakPlatformThreads": 15, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "cf-async", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [259, 184, 134], "medianMs": 184, "forwarded": 400, "peakPlatformThreads": 76, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "cf-pool", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [274, 252, 218], "medianMs": 252, "forwarded": 400, "peakPlatformThreads": 128, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "cf-common", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [254, 199, 151], "medianMs": 199, "forwarded": 400, "peakPlatformThreads": 166, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "vt", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [254, 138, 117], "medianMs": 138, "forwarded": 400, "peakPlatformThreads": 77, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "vt-vtclient", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [253, 141, 114], "medianMs": 141, "forwarded": 400, "peakPlatformThreads": 11, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "vt-sync", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [224, 161, 111], "medianMs": 161, "forwarded": 400, "peakPlatformThreads": 75, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "sts", "n": 200, "calls": 400, "mode": "scoped", "runsMs": [250, 162, 130], "medianMs": 162, "forwarded": 400, "peakPlatformThreads": 84, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "vt-scoped", "n": 200, "calls": 400, "mode": "scoped", "runsMs": [229, 139, 101], "medianMs": 139, "forwarded": 0, "peakPlatformThreads": 76, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "cf-async", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [809, 578, 462], "medianMs": 578, "forwarded": 2000, "peakPlatformThreads": 141, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "cf-pool", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [956, 773, 762], "medianMs": 773, "forwarded": 2000, "peakPlatformThreads": 129, "cores": 2, "latencyMs": 20}
+{"error": "Caused by: java.util.concurrent.RejectedExecutionException: Thread limit exceeded replacing blocked worker", "jdk": 27, "method": "cf-common", "n": 1000, "calls": 2000, "mode": "explicit", "medianMs": null, "forwarded": 0, "peakPlatformThreads": null, "latencyMs": 20}
+{"jdk": 27, "method": "vt", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [872, 478, 343], "medianMs": 478, "forwarded": 2000, "peakPlatformThreads": 128, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "vt-vtclient", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [826, 453, 437], "medianMs": 453, "forwarded": 2000, "peakPlatformThreads": 11, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "vt-sync", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [850, 510, 396], "medianMs": 510, "forwarded": 2000, "peakPlatformThreads": 103, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "sts", "n": 1000, "calls": 2000, "mode": "scoped", "runsMs": [884, 547, 439], "medianMs": 547, "forwarded": 2000, "peakPlatformThreads": 88, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "vt-scoped", "n": 1000, "calls": 2000, "mode": "scoped", "runsMs": [826, 390, 346], "medianMs": 390, "forwarded": 0, "peakPlatformThreads": 84, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "loop", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [2168], "medianMs": 2168, "forwarded": 100, "peakPlatformThreads": 15, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "cf-async", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [75], "medianMs": 75, "forwarded": 50, "peakPlatformThreads": 62, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "cf-pool", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [97], "medianMs": 97, "forwarded": 0, "peakPlatformThreads": 112, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "cf-common", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [101], "medianMs": 101, "forwarded": 0, "peakPlatformThreads": 97, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "vt", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [91], "medianMs": 91, "forwarded": 0, "peakPlatformThreads": 64, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "vt-vtclient", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [76], "medianMs": 76, "forwarded": 0, "peakPlatformThreads": 11, "cores": 2, "latencyMs": 20}
+{"jdk": 27, "method": "vt-sync", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [78], "medianMs": 78, "forwarded": 0, "peakPlatformThreads": 60, "cores": 2, "latencyMs": 20}

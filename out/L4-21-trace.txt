@@ -1,0 +1,3 @@
+VirtualThread[#19]/runnable@ForkJoinPool-1-worker-1 reason:MONITOR
+    L4Pinning.lambda$main$0(L4Pinning.java:13) <== monitors:1
+21: 4 x 200 ms in synchronized took 412 ms

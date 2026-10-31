@@ -1,0 +1,127 @@
+<h2 id="spring">13. At work: Spring executor beans, RestTemplate → RestClient, Java 17 → 25</h2>
+<p>This section follows a migration path common in enterprise Spring codebases: Spring executors defined as beans, headers forwarded on every outbound call, most code on RestTemplate and Java 17 today, and RestClient on Java 25 as the target. The benchmark is a real Spring Boot app. A request comes in with the four headers, the controller fans out to the same echo server as section 12, and every response is checked. It ran on three stacks: <b>Java 17 + Boot 3.5</b> (today), <b>Java 25 + Boot 3.5</b> (JDK upgrade only) and <b>Java 25 + Boot 4.1</b> (the target). Each stack ran on two machines: <b>the Windows desktop</b> (i7-1260P, 16 threads, Windows 11; Temurin 17.0.20.1 and 25.0.5) and the 2-vCPU Linux cloud machine (Temurin 17.0.21 and 25.0.5). <span class="tag m">MEASURED</span></p>
+<div class="callout"><b>Where Spring stands.</b> The Spring Framework 7.0 reference marks RestTemplate as deprecated in favor of RestClient. The <code>@Deprecated</code> annotation lands in 7.1, and removal is planned for 8.0. Spring Boot 4.2 milestones deprecate <code>RestTemplateBuilder</code>. RestClient has existed since Spring Framework 6.1 (Boot 3.2), so your Java 17 repos can start using it now. <span class="tag s">SOURCED</span></div>
+
+<h3 id="spring-headers">How the headers travel</h3>
+<p>Three pieces, the same on Java 17 and 25, and the same for RestTemplate and RestClient (both accept a <code>ClientHttpRequestInterceptor</code>):</p>
+<ol>
+<li><b>A filter captures the headers once</b> into an immutable value, kept in a <code>ThreadLocal</code> for the request thread. Copying the values, rather than holding on to <code>HttpServletRequest</code>, means a worker can never read a request object Tomcat has already recycled.</li>
+<li><b>A <code>TaskDecorator</code> on every executor bean</b> copies that value onto the worker thread, and always restores it in <code>finally</code>.</li>
+<li><b>An interceptor on every client</b> adds the headers to each outbound call.</li>
+</ol>
+<pre><code>// 1. capture: OncePerRequestFilter
+ForwardedHeaders.set(ForwardedHeaders.from(request));       // X-Request-Id, X-Tenant-Id, Authorization, traceparent
+try { chain.doFilter(request, response); } finally { ForwardedHeaders.set(null); }
+
+// 2. propagate: one TaskDecorator bean, set on every executor
+@Bean TaskDecorator forwardedHeadersDecorator() {
+    return task -&gt; {
+        ForwardedHeaders captured = ForwardedHeaders.current();   // on the submitting thread
+        return () -&gt; {
+            ForwardedHeaders previous = ForwardedHeaders.current();
+            ForwardedHeaders.set(captured);
+            try { task.run(); } finally { ForwardedHeaders.set(previous); }
+        };
+    };
+}
+
+// 3. send: one interceptor, used by RestTemplate and RestClient
+@Bean ClientHttpRequestInterceptor forwardHeadersInterceptor() {
+    return (req, body, exec) -&gt; {
+        ForwardedHeaders h = ForwardedHeaders.current();
+        if (h != null) h.applyTo(req.getHeaders());
+        return exec.execute(req, body);
+    };
+}</code></pre>
+<p class="small">If you also need MDC or tracing context on the worker, copy it in the same decorator, or use Spring's <code>ContextPropagatingTaskDecorator</code> (present in spring-core 6.2.19, which we checked in the jar; it needs Micrometer's context-propagation library). The alternative to all three pieces is to pass the value explicitly: <code>restClient.get().uri(…).headers(captured::applyTo)</code>. The benchmark measures both.</p>
+
+<h3 id="spring-beans">The executor beans</h3>
+<div class="grid2">
+<div class="card"><h4>Java 17: platform pool, sized deliberately</h4>
+<pre><code>@Bean ThreadPoolTaskExecutor fanoutExecutor(TaskDecorator d) {
+    var e = new ThreadPoolTaskExecutor();
+    e.setCorePoolSize(64);            // = concurrency you need
+    e.setMaxPoolSize(64);             // (Little's law, §1)
+    e.setQueueCapacity(10_000);
+    e.setThreadNamePrefix("fanout-");
+    e.setTaskDecorator(d);
+    return e;                          // Spring calls initialize()
+}</code></pre></div>
+<div class="card"><h4>Java 25: one virtual thread per task</h4>
+<pre><code>@Bean SimpleAsyncTaskExecutor fanoutExecutor(TaskDecorator d) {
+    var e = new SimpleAsyncTaskExecutor("fanout-");
+    e.setVirtualThreads(true);        // Spring 6.1+, Java 21+
+    e.setTaskDecorator(d);            // same decorator
+    e.setConcurrencyLimit(200);       // not optional: see "connection storms"
+    return e;                          // no pool to size
+}</code></pre></div>
+</div>
+<p class="small">Calling code doesn't change between the two: <code>CompletableFuture.runAsync(task, fanoutExecutor)</code>. On Java 25 you also get virtual threads for incoming requests with <code>spring.threads.virtual.enabled=true</code>. Watch Spring Boot's auto-configured <code>applicationTaskExecutor</code>: by default it has 8 core threads and an unbounded queue, so it never grows past 8. Spring Boot also backs off it entirely once you define your own <code>Executor</code> bean. <span class="tag s">SOURCED</span></p>
+
+<h3 id="spring-results">Results: client × executor × stack</h3>
+<p>Median of three runs after a warm-up, measured inside the controller. Every cell forwarded all four headers on every call unless marked. HttpClient 5 with a sized pool is the request factory for all of these. <span class="tag m">MEASURED</span></p>
+<p><b>Windows desktop</b></p>
+{{SPRING_MAIN:desktop}}
+<p><b>Cloud (2 vCPU, Linux)</b></p>
+{{SPRING_MAIN:container}}
+
+<h3 id="spring-storm">Connection storms: why the virtual-thread bean needs a limit</h3>
+<p>On the Windows desktop, unbounded virtual-thread fan-out at 1,000 tasks failed with <code>Connection refused</code>. The 64-thread pool never failed. To isolate it we started the app fresh for each size (an empty connection pool) and made one call with no warm-up: <span class="tag m">MEASURED</span></p>
+{{STORM_TABLE_SMALL}}
+<p>With a thread pool, at most 64 connections open at once. With one virtual thread per task, every task asks for a new connection at the same instant, and the server's queue of not-yet-accepted connections overflowed. §14 confirms the cause: Java servers before JDK 26 couldn't get a backlog above 200 on Windows. Moving only the server to JDK 26 made the same unbounded fan-out succeed up to 2,000 tasks. Your downstreams' queues, load balancers and gateways aren't yours to tune, though, and a cold start, a deploy, or a pool flushed after a network blip turns every in-flight task into a new connection at once. <span class="tag m">MEASURED</span></p>
+<div class="callout"><b>The fix is one line:</b> <code>setConcurrencyLimit(200)</code> on the <code>SimpleAsyncTaskExecutor</code>. Beyond the limit, a submission waits for a slot instead of opening another connection. With it, every size succeeded on both machines, and the limited bean is still far faster than the 64-thread pool in the tables above. Prefer a per-downstream <code>Semaphore</code> when one executor serves several backends with different limits (§7). <span class="tag m">MEASURED</span></div>
+
+<h3 id="spring-factory">The request factory matters more than the client</h3>
+<p>The same RestClient fan-out at 1,000 tasks (2,000 calls), with only the request factory changed. On Java 17 the executor is the 64-thread pool; on Java 25 it's the virtual-thread bean with a limit of 200, so the comparison measures factories rather than connection storms. <span class="tag m">MEASURED</span></p>
+<p><b>Windows desktop</b></p>
+{{SPRING_FACTORY:desktop}}
+<p><b>Cloud</b></p>
+{{SPRING_FACTORY:container}}
+<div class="callout warn"><b>The migration trap.</b> <code>new RestTemplate()</code> uses <code>SimpleClientHttpRequestFactory</code> (<code>HttpURLConnection</code>). But <code>RestClient.create()</code> and <code>RestClient.builder()</code> without a request factory pick Apache HttpClient 5 whenever it's on the classpath. We confirmed that in spring-web 6.2.19's <code>DefaultRestClientBuilder</code>. Spring builds that client with HttpClient 5's defaults: <b>5 connections per host and 25 in total</b> (constants read from httpclient5 5.5.2). That is the "HC5 default pool" row: the same 2,000 calls took over 8 seconds. A published report found the same effect: swapping to <code>RestClient.create()</code> made parallel calls 4× slower with HttpClient 5 on the classpath. Always pass an explicitly configured request factory. <span class="tag m">MEASURED</span> <span class="tag s">SOURCED</span></div>
+<pre><code>// What to give RestClient (and RestTemplate) instead
+var pool = PoolingHttpClientConnectionManagerBuilder.create()
+        .setMaxConnPerRoute(200)       // ≥ the concurrency you send to one host
+        .setMaxConnTotal(400)
+        .build();
+var httpClient = HttpClients.custom().setConnectionManager(pool).build();
+RestClient client = RestClient.builder()
+        .requestFactory(new HttpComponentsClientHttpRequestFactory(httpClient))
+        .requestInterceptor(forwardHeadersInterceptor)
+        .build();
+// With Boot's builders: ClientHttpRequestFactoryBuilder.httpComponents()
+//     .withConnectionManagerCustomizer(b -&gt; b.setMaxConnPerRoute(200).setMaxConnTotal(400))</code></pre>
+<p class="small">We found no pool sizing in Spring Boot 3.5's <code>HttpComponentsClientHttpRequestFactoryBuilder</code>, only the customizer hook. So assume Boot's auto-configured builders also start from HttpClient 5's defaults until you check your own version. <span class="tag i">INFERRED</span></p>
+
+<h3 id="spring-context">Do the headers arrive?</h3>
+{{SPRING_CONTEXT}}
+
+<h3 id="spring-findings">What this means for your migration</h3>
+<p class="small">Numbers are from the Windows desktop unless marked. There a 20 ms wait costs about 31 ms per call (the Windows timer, §12), so each 2-call task takes about 62 ms.</p>
+<ol>
+<li><b>On Java 17, the pool size is your throughput.</b> A pool shaped like Boot's default (8 threads) took {{S:desktop:j17b3:rt-boot8:1000}} for 1,000 tasks. The 64-thread pool took {{S:desktop:j17b3:rt-pool:1000}}. Little's law predicts both almost exactly: 1,000 ÷ 8 × 62 ms ≈ 7.75 s, and 1,000 ÷ 64 → 16 waves × 62 ms ≈ 0.99 s. <span class="tag m">MEASURED</span></li>
+<li><b>The JDK upgrade alone changes nothing.</b> Same Boot 3.5 jar, same 64-thread pool: {{S:desktop:j17b3:rt-pool:1000}} on Java 17, {{S:desktop:j25b3:rt-pool:1000}} on Java 25. <span class="tag m">MEASURED</span></li>
+<li><b>Swapping the executor bean is where Java 25 pays off.</b> The virtual-thread bean with a limit of 200 took {{S:desktop:j25b4:rc-vt-limit:1000}} for 1,000 tasks versus {{S:desktop:j25b4:rc-pool:1000}} on the pool, and {{S:desktop:j25b4:rc-vt-limit:200}} versus {{S:desktop:j25b4:rc-pool:200}} for 200. The limit costs something: 1,000 ÷ 200 = 5 waves. Without it, the cloud machine finished 1,000 in {{S:container:j25b4:rc-vt:1000}}, but the Windows desktop refused connections (see connection storms). Set the limit to what your downstream can actually take. <span class="tag m">MEASURED</span></li>
+<li><b>RestTemplate → RestClient is not a performance change.</b> With the same factory and executor: {{S:desktop:j25b4:rt-vt:200}} vs {{S:desktop:j25b4:rc-vt:200}} on the Windows desktop, and {{S:container:j25b4:rt-vt:1000}} vs {{S:container:j25b4:rc-vt:1000}} in the cloud. Migrate for the API and the deprecation, and keep the request factory under control while you do. <span class="tag m">MEASURED</span></li>
+<li><b>Boot 3.5 → 4.1 made no measurable difference</b> on Java 25: {{S:desktop:j25b3:rc-vt-limit:1000}} vs {{S:desktop:j25b4:rc-vt-limit:1000}}. <span class="tag m">MEASURED</span></li>
+<li><b>The request factory is the trap.</b> HttpClient 5's default pool took over 12 s on the Windows desktop (8 s in the cloud) on every stack, including Java 17 with 64 threads. That's 5 connections per host no matter how many threads you have. With the pool sized, HttpClient 5, <code>HttpURLConnection</code> and <code>java.net.http</code> were within about 15% of each other on the Windows desktop. <span class="tag m">MEASURED</span></li>
+<li><b>Virtual threads don't carry your headers.</b> Without the decorator, both the platform pool and the virtual-thread executor forwarded 0 of 100 calls, on both machines and every stack. With it, or with explicit headers, every call that completed had all four. <span class="tag m">MEASURED</span></li>
+<li><b>Unbounded virtual-thread fan-out can fail on a cold pool.</b> On the Windows desktop, 1,000 tasks with no limit were refused at connect time on every Java 25 stack. With the limit of 200, every run succeeded. <span class="tag m">MEASURED</span></li>
+<li><b>Stale pooled connections show up too.</b> With several HttpClient 5 pools each holding hundreds of keep-alive connections, our test server started closing idle ones. HttpClient 5 then reused dead connections and threw <code>NoHttpResponseException</code>. Set an idle-eviction or validate-after-inactivity policy when you size a pool up. <span class="tag m">MEASURED</span> <span class="tag i">INFERRED</span></li>
+</ol>
+
+<h3 id="spring-plan">A migration order that keeps each step measurable</h3>
+<ol>
+<li><b>Now, on Java 17:</b> add the filter, <code>TaskDecorator</code> and interceptor. Put the decorator on every executor bean. Replace any use of the 8-thread default executor for fan-out. Size the HttpClient 5 pool to at least the executor's thread count.</li>
+<li><b>Start new code on RestClient</b> (available on Boot 3.2+). Bridge old code with <code>RestClient.create(restTemplate)</code>, which keeps the existing request factory and interceptors, then move to <code>RestClient.builder()</code> with an explicit factory. <span class="tag s">SOURCED</span></li>
+<li><b>Upgrade to Java 25</b> with no other change, and confirm nothing moved (finding 2).</li>
+<li><b>Swap the fan-out executor bean</b> to the virtual-thread <code>SimpleAsyncTaskExecutor</code> with the same decorator <em>and a concurrency limit</em>. Protect each downstream with a <code>Semaphore</code> or <code>setConcurrencyLimit</code>, and size its connection pool to that limit (§7). Test from a cold start, not only with warm pools.</li>
+<li><b>Turn on <code>spring.threads.virtual.enabled</code></b> for request handling, and load-test with JFR recording <code>jdk.VirtualThreadPinned</code> (§10).</li>
+<li><b>Boot 4:</b> add <code>spring-boot-starter-restclient</code>; RestTemplate auto-configuration and <code>RestTemplateBuilder</code> are on their way out. <span class="tag s">SOURCED</span></li>
+</ol>
+<details><summary>Full Spring benchmark sources</summary>
+<p class="small"><b>spring/pom.xml</b> (profiles <code>boot3</code> = Boot 3.5.16 / Spring 6.2.19 / HttpClient 5.5.2; <code>boot4</code> = Boot 4.1.2 / Spring 7.0.10 / HttpClient 5.6.5)</p><pre><code>{{SRC:pom.xml}}</code></pre>
+<p class="small"><b>ForwardedHeaders.java</b></p><pre><code>{{SRC:ForwardedHeaders.java}}</code></pre>
+<p class="small"><b>HttpConfig.java</b></p><pre><code>{{SRC:HttpConfig.java}}</code></pre>
+<p class="small"><b>FanoutController.java</b></p><pre><code>{{SRC:FanoutController.java}}</code></pre>
+<p class="small"><b>spring/run_spring_bench.py</b> starts the echo server and each app/JDK combination and runs the scenarios. See the README for the command.</p>
+</details>

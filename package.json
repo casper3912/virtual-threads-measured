@@ -1,0 +1,12 @@
+{
+  "name": "virtual-threads-measured",
+  "private": true,
+  "description": "Verification harness for the single-file Virtual Threads, Measured page",
+  "scripts": {
+    "build": "python3 build.py",
+    "verify": "node verify/verify.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}

@@ -1,0 +1,12 @@
+# build outputs and local tooling
+node_modules/
+test-results/
+dist/
+*.class
+bench/build/
+spring/build/
+spring/target/
+spring/dist/
+spring/build-*.log
+guard/classes/
+java-virtual-threads.html

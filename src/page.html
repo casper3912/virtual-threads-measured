@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Virtual Threads, Measured — learning and teaching Java virtual threads</title>
+<style>
+:root{
+  --bg:#fbfaf7; --panel:#ffffff; --ink:#1d2329; --mute:#5b6570; --line:#dfe3e7;
+  --accent:#0f6b6b; --accent2:#b0601a; --code:#f3f4f2; --good:#2f7d46; --bad:#a3332b; --warn:#9a6a00;
+  --cpu:#0f6b6b; --pin:#a3332b; --blk:#9aa4ad; --tagm:#2f7d46; --tags:#2a5d9f; --tagi:#8a5a00;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#14181c; --panel:#1b2026; --ink:#e6e9ec; --mute:#9aa6b2; --line:#2c333b;
+    --accent:#4fb3b3; --accent2:#e09a52; --code:#20262d; --good:#5fbf7c; --bad:#e2766c; --warn:#d9a94a;
+    --cpu:#4fb3b3; --pin:#e2766c; --blk:#56606a; --tagm:#5fbf7c; --tags:#7aa7e6; --tagi:#d9a94a; }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+[id]{scroll-margin-top:56px}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} }
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--accent)}
+header.hero{padding:40px 20px 24px;border-bottom:1px solid var(--line);background:var(--panel)}
+.wrap{max-width:920px;margin:0 auto;padding:0 20px}
+h1{font-size:2.1rem;line-height:1.15;margin:0 0 8px}
+h2{font-size:1.5rem;margin:48px 0 8px;padding-top:8px;border-top:2px solid var(--line)}
+h3{font-size:1.15rem;margin:28px 0 6px}
+.sub{color:var(--mute);margin:0 0 14px;font-size:1.05rem}
+nav.top{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;white-space:nowrap}
+nav.top .wrap{display:flex;gap:4px;padding:6px 20px}
+nav.top a{display:inline-block;padding:6px 10px;border-radius:6px;text-decoration:none;color:var(--ink);font-size:.92rem}
+nav.top a:hover,nav.top a:focus{background:var(--code)}
+nav.top .sep{color:var(--line);padding:6px 2px}
+.tracks{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px}
+.track{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--bg)}
+.track b{display:block;margin-bottom:4px}
+.track ol{margin:6px 0 0;padding-left:20px}
+@media (max-width:640px){ .tracks{grid-template-columns:1fr} h1{font-size:1.7rem} }
+code,pre,kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em}
+code{background:var(--code);padding:1px 5px;border-radius:4px}
+pre{background:var(--code);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow-x:auto;line-height:1.45;margin:8px 0}
+pre code{background:none;padding:0}
+pre.out{border-left:4px solid var(--good)}
+pre.out.fail{border-left-color:var(--bad)}
+.lab{border:1px solid var(--line);border-radius:10px;padding:4px 16px 12px;margin:18px 0;background:var(--panel)}
+.lab h4{margin:12px 0 4px;font-size:1.02rem}
+.lab .cmd{font-size:.85rem;color:var(--mute)}
+details{margin:8px 0}
+summary{cursor:pointer;font-weight:600}
+.tag{display:inline-block;font-size:.7rem;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:4px;vertical-align:middle;border:1px solid currentColor;margin-right:4px}
+.tag.m{color:var(--tagm)} .tag.s{color:var(--tags)} .tag.i{color:var(--tagi)}
+.callout{border-left:4px solid var(--accent);background:var(--panel);padding:10px 14px;margin:14px 0;border-radius:0 8px 8px 0}
+.callout.warn{border-left-color:var(--accent2)}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-size:.93rem}
+th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+th{background:var(--code)}
+td code,p code,li code{overflow-wrap:anywhere}
+.tablewrap{overflow-x:auto}
+.widget{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:14px 16px;margin:16px 0}
+.controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-end;margin-bottom:10px}
+.controls label{display:flex;flex-direction:column;font-size:.85rem;color:var(--mute);gap:3px}
+select,input[type=number]{max-width:100%;font:inherit;font-size:.95rem;padding:5px 7px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);min-width:90px}
+button{font:inherit;font-size:.92rem;padding:6px 12px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+.result{font-size:1rem;margin:8px 0}
+.result strong{font-size:1.25rem}
+.legend{display:flex;gap:14px;font-size:.82rem;color:var(--mute);flex-wrap:wrap;margin:6px 0}
+.sw{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-1px;margin-right:4px}
+svg.gantt{width:100%;height:auto;display:block}
+.q{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:12px 0;background:var(--panel)}
+.q p{margin:0 0 6px;font-weight:600}
+.q label{display:block;padding:3px 0;cursor:pointer}
+.q .fb{margin-top:6px;font-size:.93rem}
+.q.right{border-color:var(--good)} .q.wrong{border-color:var(--bad)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid2>*{min-width:0}
+@media (max-width:640px){ .grid2{grid-template-columns:1fr} }
+.card{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--panel)}
+.card h4{margin:4px 0}
+footer{margin-top:60px;border-top:1px solid var(--line);padding:24px 0 60px;color:var(--mute);font-size:.88rem}
+#testlog{font-family:ui-monospace,monospace;font-size:.8rem;white-space:pre-wrap;background:var(--code);padding:10px;border-radius:8px;max-height:260px;overflow:auto}
+.ok{color:var(--good);font-weight:700} .no{color:var(--bad);font-weight:700}
+.small{font-size:.86rem;color:var(--mute)}
+.verdict{font-weight:700}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <h1>Virtual Threads, Measured</h1>
+    <p class="sub">A single-page course for <em>learning</em> and <em>teaching</em> Java virtual threads. Every timing on this page came from a program you can read here, run on real JDKs (21, 25 and 27) before the page was built.</p>
+    <p class="small">Tags: <span class="tag m">MEASURED</span> ran here, output shown · <span class="tag s">SOURCED</span> from a JEP or official doc (see <a href="#sources">Sources</a>) · <span class="tag i">INFERRED</span> reasoning, not tested. Machine for all measurements: {{MACHINE}}.</p>
+    <div class="tracks">
+      <div class="track"><b>Learning it?</b> Read top to bottom. About 90 minutes with the labs.
+        <ol><li><a href="#why">Why they exist</a></li><li><a href="#model">The mental model</a></li><li><a href="#sim">Play with the simulator</a></li><li><a href="#pinning">Pinning by JDK version</a></li><li><a href="#prod">Using them in production</a></li><li><a href="#bench">GET requests: loop vs CompletableFuture vs virtual threads</a></li><li><a href="#spring">Spring: executor beans, RestTemplate → RestClient, Java 17 → 25</a></li><li><a href="#field">What we hit, and what others have reported</a></li><li><a href="#quiz">Check yourself</a></li></ol></div>
+      <div class="track"><b>Teaching it?</b> Jump to the <a href="#teach">teaching kit</a>: a three-session plan, the misconceptions students bring, graded exercises, a review checklist, and the guardrails to put in CI.
+        <ol><li><a href="#plan">Session plan</a></li><li><a href="#myths">Misconceptions</a></li><li><a href="#exercises">Exercises</a></li><li><a href="#review">Review checklist</a></li><li><a href="#guardrails">Guardrails for AI-written code</a></li></ol></div>
+    </div>
+  </div>
+</header>
+<nav class="top" aria-label="Sections"><div class="wrap">
+  <a href="#why">Why</a><a href="#model">Model</a><a href="#api">API</a><a href="#fit">Fit</a><a href="#sim">Simulator</a><a href="#pinning">Pinning</a><a href="#limits">Limits</a><a href="#context">Context</a><a href="#structured">Structured</a><a href="#observe">Observe</a><a href="#prod">Production</a><a href="#bench">GET bench</a><a href="#spring">Spring</a><a href="#field">Field reports</a><span class="sep">|</span><a href="#teach">Teach</a><a href="#quiz">Quiz</a><a href="#glossary">Glossary</a><a href="#sources">Sources</a><a href="#colophon">Tests</a>
+</div></nav>
+
+<main class="wrap">
+
+<h2 id="why">1. Why virtual threads exist</h2>
+<p>Most server code is written thread-per-request: one thread handles one request from start to finish, and when it calls a database or another service it simply waits. That style is easy to read, debug and profile. Its problem is cost. A platform thread is a thin wrapper around an operating-system thread, with a large reserved stack and a kernel scheduling entry, so a JVM can only afford a few thousand of them. <span class="tag s">SOURCED</span></p>
+<p>Little's law ties that limit to throughput. If each request spends <code>W</code> seconds in the system and you want <code>λ</code> requests per second, you need <code>L = λ × W</code> requests in flight at once, and with thread-per-request each one holds a thread. A 200-thread pool serving requests that wait 100 ms can never exceed 2,000 requests per second, no matter how idle the CPU is.</p>
+<p>The industry's previous answer was asynchronous code (callbacks, <code>CompletableFuture</code> chains, reactive streams), which frees the thread during waits but gives up readable stack traces and straight-line control flow. Virtual threads, final in JDK 21 (JEP 444), keep the thread-per-request style and make the threads cheap enough to have millions. <span class="tag s">SOURCED</span></p>
+
+<div class="widget" id="little">
+  <b>Little's law calculator</b>
+  <div class="controls">
+    <label>Target throughput (req/s)<input type="number" id="ll-rate" value="5000" min="1"></label>
+    <label>Time each request waits (ms)<input type="number" id="ll-wait" value="100" min="1"></label>
+    <label>Platform pool size<input type="number" id="ll-pool" value="200" min="1"></label>
+  </div>
+  <div class="result" id="ll-out">Enable scripts to calculate. Formula: concurrency needed = rate × wait; pool ceiling = pool ÷ wait.</div>
+</div>
+
+<h2 id="model">2. The mental model</h2>
+<p>A virtual thread is a <code>java.lang.Thread</code> whose stack lives on the heap as a <em>continuation</em>. The JDK runs it by <strong>mounting</strong> it on a platform thread called a <strong>carrier</strong>. Carriers come from a small <code>ForkJoinPool</code>, one per core by default. <span class="tag s">SOURCED</span></p>
+<ol>
+  <li><b>Mount.</b> The scheduler picks a runnable virtual thread and copies the top of its stack onto a free carrier.</li>
+  <li><b>Run.</b> Your code executes on the carrier like any other Java code.</li>
+  <li><b>Block → unmount.</b> When the code blocks in a JDK API that supports it (socket read, <code>Thread.sleep</code>, <code>BlockingQueue.take</code>, lock acquisition), the virtual thread saves its stack frames to the heap and gives the carrier back. The carrier immediately runs someone else.</li>
+  <li><b>Unblock → remount.</b> When the I/O completes, the virtual thread becomes runnable again and is mounted on whichever carrier is free, possibly a different one.</li>
+</ol>
+<div class="callout"><b>The one-sentence version:</b> virtual threads make <em>waiting</em> cheap. They do not make <em>computing</em> faster, and they are not time-sliced: a virtual thread that never blocks keeps its carrier until it finishes. <span class="tag s">SOURCED</span></div>
+<p>The exceptions to step 3 are what the rest of this page is about. When a virtual thread blocks but cannot unmount, it is <strong>pinned</strong>, and its carrier sits idle with it. Which situations pin has changed across JDK releases (<a href="#pinning">section 6</a>).</p>
+
+<h2 id="api">3. The API in five minutes</h2>
+<p>There is no new thread class to learn. A virtual thread is a <code>Thread</code>; you just create it differently.</p>
+<div class="lab"><h4>Lab 1 · Three ways to start one <span class="tag m">MEASURED</span></h4>
+<pre><code>{{SRC:L1Hello.java}}</code></pre>
+<div class="cmd">$ java L1Hello.java &nbsp;(JDK 25)</div>
+<pre class="out"><code>{{OUT:L1-25}}</code></pre>
+<p class="small">Read the first line of output: <code>VirtualThread[#23,vt-a]/runnable@ForkJoinPool-1-worker-1</code> says "virtual thread 23, currently runnable, mounted on carrier <code>ForkJoinPool-1-worker-1</code>". Virtual threads are always daemon threads, and <code>main</code> itself is still a platform thread.</p>
+</div>
+<div class="tablewrap"><table><tr><th>Use</th><th>For</th></tr>
+<tr><td><code>Executors.newVirtualThreadPerTaskExecutor()</code></td><td>The default choice. A new virtual thread per submitted task; <code>close()</code> waits for them all.</td></tr>
+<tr><td><code>Thread.ofVirtual().name("x", 0).start(r)</code></td><td>When you want naming or a <code>ThreadFactory</code> (<code>.factory()</code>) for a framework.</td></tr>
+<tr><td><code>Thread.startVirtualThread(r)</code></td><td>Quick one-offs and demos.</td></tr>
+</table></div>
+
+<h2 id="fit">4. Where they help, and where they don't</h2>
+<div class="lab"><h4>Lab 2 · 10,000 tasks that each wait 100 ms <span class="tag m">MEASURED</span></h4>
+<pre><code>{{SRC:L2Scale.java}}</code></pre>
+<div class="cmd">$ java L2Scale.java &nbsp;(JDK 25)</div>
+<pre class="out"><code>{{OUT:L2-25}}</code></pre>
+<p class="small">The pool's 5 seconds is exactly what Little's law predicts. The virtual run is close to the 100 ms floor of a single wait. JDK 21 gave the same shape: {{OUT_INLINE:L2-21}}</p>
+</div>
+<div class="lab"><h4>Lab 3 · CPU-bound work <span class="tag m">MEASURED</span></h4>
+<pre><code>{{SRC:L3Cpu.java}}</code></pre>
+<div class="cmd">$ java L3Cpu.java &nbsp;(JDK 25)</div>
+<pre class="out"><code>{{OUT:L3-25}}</code></pre>
+<p class="small">No difference: two cores are two cores. A first version of this lab without the warm-up loop showed virtual threads "2.3× faster" because the pool ran first and paid the JIT's warm-up cost. That is a good story to tell students about benchmarking (see <a href="#exercises">exercise 2</a>).</p>
+</div>
+<div class="grid2">
+  <div class="card"><h4 style="color:var(--good)">Good fit</h4>Many concurrent tasks that mostly wait: HTTP handlers, calls to databases and other services, message consumers, fan-out to several backends, blocking SDKs you can't rewrite.</div>
+  <div class="card"><h4 style="color:var(--bad)">No gain</h4>CPU-bound work (use a pool sized to the cores, or parallel streams), a few long-lived threads, and code that's already non-blocking end to end. Reactive code gains little from switching. <span class="tag i">INFERRED</span></div>
+</div>
+
+<h2 id="sim">5. Scheduler simulator</h2>
+<p>A small model of the scheduler. Each task does a little CPU work, waits, and does a little more CPU work. Choose where the wait happens and which JDK you're on, then compare the timeline with a platform pool. The model is deliberately simple (FIFO ready queue, no time-slicing, no compensation threads); its tests in the <a href="#colophon">colophon</a> check it against the measured labs. <span class="tag i">MODEL</span></p>
+<div class="widget" id="simw">
+  <div class="controls">
+    <label>Threads run as<select id="s-mode"><option value="virtual">virtual threads</option><option value="platform">platform pool</option></select></label>
+    <label><span id="s-clabel">Carriers</span><input type="number" id="s-car" value="2" min="1" max="8"></label>
+    <label>Tasks<input type="number" id="s-n" value="8" min="1" max="40"></label>
+    <label>CPU per step (ms)<input type="number" id="s-cpu" value="10" min="0" max="500"></label>
+    <label>Wait (ms)<input type="number" id="s-blk" value="200" min="0" max="2000"></label>
+    <label>The wait happens…<select id="s-kind"><option value="plain">in plain code (socket, sleep)</option><option value="sync">inside synchronized</option><option value="native">inside a native call (JNI/FFM)</option></select></label>
+    <label>JDK<select id="s-jdk"><option value="21">21–23</option><option value="25" selected>24 and later</option></select></label>
+  </div>
+  <div class="legend"><span><span class="sw" style="background:var(--cpu)"></span>running on carrier</span><span><span class="sw" style="background:var(--pin)"></span>pinned: blocked, carrier held</span><span><span class="sw" style="background:var(--blk)"></span>platform thread blocked</span></div>
+  <div class="result" id="s-out">Enable scripts to run the simulator.</div>
+  <div id="s-svg"></div>
+  <p class="small" id="s-explain"></p>
+  <div><button class="ghost" id="s-preset1">Preset: Lab 4 on JDK 21</button> <button class="ghost" id="s-preset2">Preset: Lab 2 in miniature</button> <button class="ghost" id="s-preset3">Preset: CPU-bound</button></div>
+</div>
+
+<h2 id="pinning">6. Pinning, and how it changed by JDK version</h2>
+<p>In JDK 21–23 a virtual thread could not unmount while it held a monitor (inside a <code>synchronized</code> block or method) or while it was inside a native frame. Blocking there held the carrier for the whole wait. With the default number of carriers equal to cores, a handful of such waits could stall an entire service. JEP 491 in JDK 24 reimplemented monitors so virtual threads can block inside <code>synchronized</code> and still unmount. Native frames, including FFM downcalls, and some class-initialization paths still pin. <span class="tag s">SOURCED</span></p>
+<div class="lab"><h4>Lab 4 · Blocking inside synchronized, one carrier <span class="tag m">MEASURED</span></h4>
+<pre><code>{{SRC:L4Pinning.java}}</code></pre>
+<div class="cmd">$ java -Djdk.virtualThreadScheduler.parallelism=1 L4Pinning.java</div>
+<pre class="out fail"><code>{{OUT:L4-21}}</code></pre>
+<pre class="out"><code>{{OUT:L4-25}}
+{{OUT:L4-27}}</code></pre>
+<p class="small">Same source, three JDKs. On 21 the four sleeps run one after another because each one pins the only carrier; on 25 and 27 they overlap. JDK 21 was run five times and gave 806–811 ms every time.</p>
+</div>
+<div class="lab"><h4>Lab 5 · The JDK 21 workaround: ReentrantLock <span class="tag m">MEASURED</span></h4>
+<pre><code>{{SRC:L5Lock.java}}</code></pre>
+<div class="cmd">$ java -Djdk.virtualThreadScheduler.parallelism=1 L5Lock.java &nbsp;(JDK 21)</div>
+<pre class="out"><code>{{OUT:L5-21}}</code></pre>
+<p class="small">On JDK 21 you replace <code>synchronized</code> with a <code>java.util.concurrent</code> lock around blocking calls. On 24+ that rewrite isn't needed for this reason, so don't churn code you'll run on 25.</p>
+</div>
+<div class="tablewrap"><table>
+<tr><th>JDK</th><th>What changed for virtual threads</th><th></th></tr>
+<tr><td>19, 20</td><td>Preview (JEP 425, JEP 436)</td><td><span class="tag s">SOURCED</span></td></tr>
+<tr><td><b>21 LTS</b></td><td>Final (JEP 444). <code>synchronized</code> + blocking pins. Structured concurrency first preview (JEP 453).</td><td><span class="tag s">SOURCED</span></td></tr>
+<tr><td>24</td><td>JEP 491: <code>synchronized</code> and <code>Object.wait()</code> no longer pin. <code>jdk.tracePinnedThreads</code> flag removed; JFR is the tool.</td><td><span class="tag s">SOURCED</span> <span class="tag m">MEASURED</span></td></tr>
+<tr><td><b>25 LTS</b></td><td>First LTS with JEP 491. <code>ScopedValue</code> final (JEP 506; Lab 7 compiled without <code>--enable-preview</code>). Structured concurrency 5th preview (JEP 505).</td><td><span class="tag s">SOURCED</span> <span class="tag m">MEASURED</span></td></tr>
+<tr><td>26</td><td>Structured concurrency 6th preview (JEP 525): <code>Joiner.onTimeout</code>, renamed joiners.</td><td><span class="tag s">SOURCED</span></td></tr>
+<tr><td>26</td><td>Java servers on Windows can have a listen backlog above 200 (JDK-8330940); see §14.</td><td><span class="tag s">SOURCED</span> <span class="tag m">MEASURED</span></td></tr>
+<tr><td>27</td><td>Structured concurrency 7th preview (JEP 533). The default scope's <code>join()</code> now throws <code>ExecutionException</code>, not <code>FailedException</code>.</td><td><span class="tag m">MEASURED</span></td></tr>
+<tr><td><b>28</b> (due March 2027)</td><td>Structured concurrency final (JEP 543), with no API change from 27.</td><td><span class="tag s">SOURCED</span></td></tr>
+</table></div>
+<div class="callout warn"><b>If you're on JDK 21 in production</b>, pinning is your main risk and the cheapest fix is usually the upgrade to 25, not a rewrite. Until then: find pinning with JFR (<a href="#observe">Lab 10</a>), and move blocking calls out of <code>synchronized</code> in your own hot paths. Libraries you don't control (old JDBC drivers, some caches) are where it hides. <span class="tag i">INFERRED</span></div>
+
+<h2 id="limits">7. Limiting concurrency: semaphores, not pools</h2>
+<p>A thread pool used to do two jobs: reuse expensive threads and cap how many things run at once. Virtual threads remove the first reason entirely, so <strong>never pool virtual threads</strong>. The second reason still matters: your database has a connection limit and the payment API has a rate limit. Express that limit directly at the resource with a <code>Semaphore</code>. <span class="tag s">SOURCED</span></p>
+<div class="lab"><h4>Lab 6 · 200 tasks, a downstream that allows 10 <span class="tag m">MEASURED</span></h4>
+<pre><code>{{SRC:L6Semaphore.java}}</code></pre>
+<div class="cmd">$ java L6Semaphore.java &nbsp;(JDK 25)</div>
+<pre class="out"><code>{{OUT:L6-25}}</code></pre>
+</div>
+<p>The same idea applies to connection pools. With 200 platform threads, a 10-connection pool saw at most 200 waiters. With 10,000 virtual threads it sees 10,000, all waiting on the pool. The bottleneck moves to the pool and its timeouts, so size it and set its acquisition timeout deliberately. <span class="tag i">INFERRED</span></p>
+
+<h2 id="context">8. Request context: ThreadLocal vs ScopedValue</h2>
+<p><code>ThreadLocal</code> works on virtual threads, but it was designed for a few long-lived pooled threads. With a million short-lived threads, per-thread caches (the classic "cache an expensive formatter in a ThreadLocal" trick) are created a million times and never reused. Inheritable thread-locals copy the map into each child. <code>ScopedValue</code> is the replacement for passing context down a call: immutable, bound for a block of code, automatically unbound at the end, and cheap to inherit into structured subtasks. <span class="tag s">SOURCED</span></p>
+<div class="lab"><h4>Lab 7 · ScopedValue <span class="tag m">MEASURED</span></h4>
+<pre><code>{{SRC:L7Scoped.java}}</code></pre>
+<div class="cmd">$ java L7Scoped.java &nbsp;(JDK 25, no preview flag)</div>
+<pre class="out"><code>{{OUT:L7-25}}</code></pre>
+<p class="small">On JDK 21 the same file fails to compile without <code>--enable-preview</code>, because <code>ScopedValue</code> was still a preview API there.</p>
+</div>
+
+<h2 id="structured">9. Structured concurrency (still preview)</h2>
+<p>Cheap threads make it easy to fork lots of work, and easy to leak it: a subtask that outlives its caller, or a failure in one branch while the others keep running. <code>StructuredTaskScope</code> ties forked subtasks to a lexical block. The block can't exit until they finish, a failure cancels the siblings, and thread dumps show the parent–child tree. <span class="tag s">SOURCED</span></p>
+<div class="lab"><h4>Lab 8 · Fork two calls, fail fast <span class="tag m">MEASURED</span></h4>
+<pre><code>{{SRC:L8Structured.java}}</code></pre>
+<div class="cmd">$ java --enable-preview --source 25 L8Structured.java</div>
+<pre class="out"><code>{{OUT:L8-25}}</code></pre>
+<div class="cmd">JDK 27: the same file fails to compile. Changing one line (catch <code>java.util.concurrent.ExecutionException</code>) gives:</div>
+<pre class="out"><code>{{OUT:L8-27}}</code></pre>
+</div>
+<div class="callout warn">The API changed in every release from 21 to 27, and this page caught one of those changes by compiling. It's now settled: JEP 543 makes structured concurrency final in JDK 28 (due March 2027) with exactly the JDK 27 API shown above. On JDK 25 it's still a preview feature. Use it in experiments written against the JDK 27 shape, or through a backport library, and expect to adopt it for real on JDK 28 or the next LTS. <span class="tag m">MEASURED</span> <span class="tag s">SOURCED</span></div>
+
+<h2 id="observe">10. Seeing virtual threads</h2>
+<div class="lab"><h4>Lab 9 · JSON thread dump <span class="tag m">MEASURED</span></h4>
+<pre><code>{{SRC:L9Dump.java}}</code></pre>
+<div class="cmd">$ jcmd &lt;pid&gt; Thread.dump_to_file -format=json dump.json &nbsp;→ the three workers, extracted:</div>
+<pre class="out"><code>{{OUT:L9-25}}</code></pre>
+<p class="small">Classic <code>jstack</code> output is built for thousands of threads, not millions. The JSON dump groups threads by container (an executor or a structured scope), which is the view you want.</p>
+</div>
+<div class="lab"><h4>Lab 10 · Catch pinning with JFR <span class="tag m">MEASURED</span></h4>
+<pre><code>{{SRC:L10Jfr.java}}</code></pre>
+<div class="cmd">$ java L10Jfr.java</div>
+<pre class="out fail"><code>{{OUT:L10-21}}</code></pre>
+<pre class="out"><code>{{OUT:L10-25}}</code></pre>
+<p class="small">The <code>jdk.VirtualThreadPinned</code> event fires when a virtual thread blocks while pinned for longer than the threshold (20 ms by default). This is the signal to put in a load test or CI run (see <a href="#guardrails">guardrails</a>).</p>
+</div>
+<div class="callout warn"><b>An observer effect we hit.</b> On JDK 21, the old diagnostic flag <code>-Djdk.tracePinnedThreads=short</code> printed the pinning stack trace, but it also changed the result: Lab 4 took about 415 ms with tracing on (three runs) versus 806–811 ms without. We didn't work out why. The practical lesson is to measure pinning with JFR and to time the workload with tracing off. <span class="tag m">MEASURED</span></div>
+<pre class="out"><code>{{OUT:L4-21-trace}}</code></pre>
+
+<h2 id="prod">11. Using them in production</h2>
+<h3>Spring Boot</h3>
+<p>From Spring Boot 3.2 on Java 21+, one property moves request handling (embedded Tomcat or Jetty) and the auto-configured async executor and scheduler onto virtual threads: <span class="tag s">SOURCED</span></p>
+<pre><code>spring.threads.virtual.enabled=true</code></pre>
+<p>When it's on, pool-sizing properties for those executors are ignored, because there's no pool. The limits you used to get from <code>server.tomcat.threads.max</code> now have to come from the resources themselves: connection pool size, semaphores, rate limiters. <span class="tag s">SOURCED</span> <span class="tag i">INFERRED</span></p>
+<h3>Migration checklist</h3>
+<ol>
+<li><b>Get on JDK 25</b> if you can. You get JEP 491 (no <code>synchronized</code> pinning) and final <code>ScopedValue</code> in an LTS.</li>
+<li><b>Measure before switching</b>: requests in flight, pool saturation, p99 latency. If threads were never your bottleneck, nothing will improve.</li>
+<li><b>Turn them on for I/O-bound entry points</b> (the Spring property, or <code>newVirtualThreadPerTaskExecutor</code> where you own the executor).</li>
+<li><b>Replace pool-as-limiter with semaphores</b> at the scarce resource. Delete pools of virtual threads.</li>
+<li><b>Audit <code>ThreadLocal</code> caches</b>: per-thread formatters, buffers, and connection holders. Move request context to <code>ScopedValue</code> on 25.</li>
+<li><b>Load-test with JFR on</b> and alert on <code>jdk.VirtualThreadPinned</code>. On 21, expect hits in <code>synchronized</code> and fix the hot ones; on 25, any hit is a native frame.</li>
+<li><b>Keep CPU-heavy work on a bounded platform pool</b> so it can't monopolize carriers.</li>
+</ol>
+
+{{INCLUDE:bench-section.html}}
+
+{{INCLUDE:spring-section.html}}
+
+{{INCLUDE:field-section.html}}
+
+<h2 id="teach">15. Teaching kit</h2>
+<p>Written for a lunch-and-learn series or a team onboarding, for developers who already know <code>ExecutorService</code>. Everything runs with nothing but a JDK: <code>java File.java</code> compiles and runs a single source file (JDK 11+), so there's no build tool to set up.</p>
+<h3 id="objectives">Learning objectives</h3>
+<p>By the end, a learner can:</p>
+<ol>
+<li>Explain mount, unmount and pinning, and predict from code whether a blocking call frees the carrier on a given JDK.</li>
+<li>Use Little's law to say whether virtual threads will raise a service's throughput.</li>
+<li>Choose a semaphore over a pool to protect a resource, and say why pooling virtual threads is wrong.</li>
+<li>Find pinning with JFR and read a JSON thread dump.</li>
+<li>Name what's final (virtual threads, <code>ScopedValue</code> on 25) and what's still preview (structured concurrency).</li>
+</ol>
+<h3 id="plan">Three-session plan</h3>
+<div class="tablewrap"><table>
+<tr><th>Session</th><th>Time</th><th>Activity</th><th>Check for understanding</th></tr>
+<tr><td rowspan="4"><b>1 · The model</b><br><span class="small">50 min</span></td><td>10</td><td>Whiteboard Little's law with your own service's numbers. Run the <a href="#little">calculator</a>.</td><td>"What's our pool's throughput ceiling?"</td></tr>
+<tr><td>15</td><td>Mount, unmount, carriers (<a href="#model">§2</a>). Run Lab 1 and read the <code>toString()</code> out loud.</td><td>"Which part of the output is the carrier?"</td></tr>
+<tr><td>15</td><td>Lab 2 live. Have people predict the pool's time before running it.</td><td>Predictions within 10% of 5 s</td></tr>
+<tr><td>10</td><td>Lab 3, and its warm-up story.</td><td>"Why did the first version lie?"</td></tr>
+<tr><td rowspan="3"><b>2 · Pinning and limits</b><br><span class="small">60 min</span></td><td>20</td><td>Lab 4 on JDK 21 and 25 side by side (install both, or use the <a href="#sim">simulator</a>). Then Lab 5.</td><td>Predict Lab 4's time on 21 before running it</td></tr>
+<tr><td>20</td><td>Simulator exercises 3 and 4 in pairs.</td><td>Pairs explain their Gantt chart</td></tr>
+<tr><td>20</td><td>Lab 6. Discuss where your services use a pool as a rate limiter.</td><td>List one real limiter to convert</td></tr>
+<tr><td rowspan="3"><b>3 · Production</b><br><span class="small">50 min</span></td><td>15</td><td>Labs 9 and 10: dumps and JFR.</td><td>Find the pinned frame in the JFR output</td></tr>
+<tr><td>15</td><td>Labs 7 and 8: context and structured concurrency, with the preview caveat.</td><td>"Which of these can we ship today?"</td></tr>
+<tr><td>20</td><td>Walk through the <a href="#bench">GET benchmark</a> and the <a href="#forwarding">forwarding table</a>, then the <a href="#prod">migration checklist</a> for a real service. Finish with the <a href="#quiz">quiz</a>.</td><td>Quiz score ≥ 7/8</td></tr>
+</table></div>
+
+<h3 id="myths">Misconceptions students bring</h3>
+<div class="tablewrap"><table>
+<tr><th>Belief</th><th>What's true</th><th>Evidence</th></tr>
+<tr><td>"Virtual threads are faster."</td><td>They make waiting cheap. CPU-bound work is unchanged.</td><td>Lab 3</td></tr>
+<tr><td>"They're like goroutines / green threads, so they're preemptive."</td><td>They aren't time-sliced. A virtual thread that never blocks keeps its carrier.</td><td>JEP 444; simulator CPU preset</td></tr>
+<tr><td>"Put them in a pool to be safe."</td><td>Pooling defeats the point. Limit the resource with a semaphore instead.</td><td>Lab 6</td></tr>
+<tr><td>"Never use synchronized with virtual threads."</td><td>True advice on JDK 21–23, outdated on 24+.</td><td>Lab 4 on 21 vs 25</td></tr>
+<tr><td>"I need reactive code to scale."</td><td>For I/O-bound thread-per-request code, virtual threads remove the thread ceiling without async rewrites.</td><td>Lab 2</td></tr>
+<tr><td>"More virtual threads means more database throughput."</td><td>The database's connection limit is still the limit; you've just moved the queue.</td><td>Lab 6, §7</td></tr>
+<tr><td>"Switching to virtual threads keeps my request context."</td><td>A new virtual thread starts with empty ThreadLocals. Capture the context explicitly, or use ScopedValue with StructuredTaskScope.</td><td><a href="#forwarding">Forwarding table</a></td></tr>
+<tr><td>"Blocking calls on the common pool are fine, it adds threads."</td><td>It adds threads only up to a limit, then throws RejectedExecutionException.</td><td><a href="#bench-findings">Finding 6</a></td></tr>
+<tr><td>"Structured concurrency is part of Java 21."</td><td>Preview from 21 to 27, with the API changing along the way; final in JDK 28.</td><td>Lab 8, §14</td></tr>
+</table></div>
+
+<h3 id="exercises">Exercises with answers</h3>
+<div class="q"><p>Exercise 1 · Predict, then run</p>Change Lab 2's pool to 1,000 threads. What time do you predict? Then try 10 tasks instead of 10,000. Which executor wins now?
+<details><summary>Answer and rubric</summary>10,000 × 0.1 s ÷ 1,000 = 1 s floor. With 10 tasks both finish in about 100 ms: virtual threads only help when concurrency exceeds what the pool can hold. Full marks for using Little's law before running.</details></div>
+<div class="q"><p>Exercise 2 · Fix a lying benchmark</p>Remove the warm-up loop from Lab 3 and swap the order of the two runs. What happens, and why?
+<details><summary>Answer and rubric</summary>Whichever executor runs first looks slower, because it pays for JIT compilation of <code>burn</code>. Without warm-up our first version reported virtual threads as 2.3× faster on CPU work, which is false. Full marks for naming JIT warm-up and proposing warm-up rounds, repeated rounds or JMH.</details></div>
+<div class="q"><p>Exercise 3 · Simulator: break JDK 21</p>In the simulator, use 2 carriers, 8 tasks, 10 ms CPU, 200 ms wait inside <code>synchronized</code>. Compare JDK 21–23 with 24+. Then find the smallest carrier count that makes JDK 21 match 24+.
+<details><summary>Answer and rubric</summary>880 ms on JDK 21–23 versus 250 ms on 24+. JDK 21 needs one carrier per task (8) to match, which is exactly "back to one OS thread per task". Full marks for connecting that to why pinning made 21 rollouts risky.</details></div>
+<div class="q"><p>Exercise 4 · Simulator: native calls</p>Set the wait to happen inside a native call. Does the JDK version matter? What would you do in a real service?
+<details><summary>Answer and rubric</summary>No; native frames pin on every JDK. Options: keep that work on a bounded platform pool, use a non-blocking API, or accept it if calls are short and rare. Full marks for proposing to measure with JFR first.</details></div>
+<div class="q"><p>Exercise 5 · Convert a limiter</p>A service uses <code>Executors.newFixedThreadPool(10)</code> to stop itself from overloading a partner API. Rewrite it for virtual threads.
+<details><summary>Answer and rubric</summary><code>newVirtualThreadPerTaskExecutor()</code> plus a <code>Semaphore(10)</code> acquired around the partner call only, as in Lab 6. Full marks for keeping the limit around the call rather than around the whole task, and for releasing it in <code>finally</code>.</details></div>
+
+<div class="q"><p>Exercise 6 · Forward the headers</p>Take the CompletableFuture + sendAsync version that reads a <code>ThreadLocal</code> context, and make it forward all four headers on both calls. Then predict how long the 64-thread-pool version takes for 1,000 tasks at 31 ms per call, and compare with the <a href="#bench-results">desktop table</a>.
+<details><summary>Answer and rubric</summary>Read the context into a local variable before the loop and use that variable in both the first request and the one built inside <code>thenCompose</code>. Then 2,000 of 2,000 calls are forwarded, not 1,000. Pool: 1,000 ÷ 64 → 16 waves × 2 calls × 31 ms ≈ 990 ms, against about 994 ms measured. Full marks for explaining <em>why</em> the callback lost the context: it runs on a different thread.</details></div>
+
+<h3 id="review">Code review checklist</h3>
+<ul>
+<li>Is the work I/O-bound? If it's CPU-bound, virtual threads won't help.</li>
+<li>Any pool of virtual threads (<code>newFixedThreadPool</code> with a virtual factory)? Replace it with per-task threads plus a semaphore.</li>
+<li>On JDK 21–23: blocking calls inside <code>synchronized</code> on a hot path?</li>
+<li>Native or FFM calls that block? These pin on every JDK.</li>
+<li><code>ThreadLocal</code> used as a cache or holding large objects?</li>
+<li>Are limits expressed at the scarce resource (connections, rate limits)?</li>
+<li>Preview APIs (<code>StructuredTaskScope</code>) in production code?</li>
+<li>Does the load test record JFR and check <code>jdk.VirtualThreadPinned</code>?</li>
+</ul>
+
+<h3 id="guardrails">Guardrails for AI-written code</h3>
+<p>Code assistants trained on years of pre-Loom answers still suggest pooling virtual threads, and advise against <code>synchronized</code> on JDKs where that's no longer needed. Review comments won't catch this reliably at scale. Deterministic checks will. Here are two, both run for this page.</p>
+<div class="lab"><h4>Lab 11 · ArchUnit rules <span class="tag m">MEASURED</span></h4>
+<pre><code>{{SRC:VirtualThreadGuard.java}}</code></pre>
+<div class="cmd">Run against a sample package with one <code>ThreadLocal</code> field and one <code>synchronized</code> method (ArchUnit 1.4.1, JDK 25):</div>
+<pre class="out fail"><code>{{OUT:L11-25}}</code></pre>
+<p class="small">The second rule only belongs in codebases still on JDK 21–23. A third class in the sample holding a <code>ScopedValue</code> passed both rules.</p>
+</div>
+<p>The second guardrail is Lab 10 turned into a test: run the load test under a JFR recording and fail the build if any <code>jdk.VirtualThreadPinned</code> event appears. It catches pinning in libraries, which a static rule can't see.</p>
+
+<h2 id="quiz">16. Check yourself</h2>
+<p class="small">Eight questions. Choose an answer for instant feedback, or open "Answer" if scripts are off.</p>
+<div id="quizbox">{{QUIZ_HTML}}</div>
+<div class="result" id="quizscore"></div>
+
+<h2 id="glossary">Glossary</h2>
+<div class="tablewrap"><table>
+<tr><td><b>Carrier</b></td><td>The platform thread a virtual thread is currently mounted on. From a <code>ForkJoinPool</code> sized to cores by default.</td></tr>
+<tr><td><b>Mount / unmount</b></td><td>Copying a virtual thread's stack frames onto a carrier, and saving them back to the heap when it blocks.</td></tr>
+<tr><td><b>Pinning</b></td><td>Blocking while unable to unmount, so the carrier is held. Native frames on every JDK; also <code>synchronized</code> on 21–23.</td></tr>
+<tr><td><b>Continuation</b></td><td>The JDK-internal object holding a virtual thread's suspended stack.</td></tr>
+<tr><td><b>Little's law</b></td><td>Requests in flight = arrival rate × time in system.</td></tr>
+<tr><td><b>ScopedValue</b></td><td>An immutable value bound for the duration of a block and visible to code it calls. Final in JDK 25.</td></tr>
+<tr><td><b>StructuredTaskScope</b></td><td>Preview API that ties forked subtasks to a block, with cancellation on failure.</td></tr>
+<tr><td><b>Platform thread</b></td><td>A <code>Thread</code> backed one-to-one by an OS thread. What every Java thread was before JDK 21.</td></tr>
+</table></div>
+
+<h2 id="sources">Sources</h2>
+<ol class="small">
+<li><a href="https://openjdk.org/jeps/444">JEP 444: Virtual Threads</a> (JDK 21). The model, the API, pinning, not pooling, ThreadLocal guidance.</li>
+<li><a href="https://openjdk.org/jeps/491">JEP 491: Synchronize Virtual Threads without Pinning</a> (JDK 24).</li>
+<li><a href="https://infoq.com/articles/virtual-threads-after-jdk24">InfoQ: Virtual Threads After JDK 24</a>. What still pins (native frames) and JDK 25 as the LTS target.</li>
+<li><a href="https://openjdk.org/jeps/525">JEP 525: Structured Concurrency (Sixth Preview)</a> (JDK 26), with history back to JEP 428.</li>
+<li><a href="https://inside.java/u/AlanBateman/">inside.java: Alan Bateman's posts</a>. JEP targeting for 491, 505, 525 and 533 (JDK 27).</li>
+<li><a href="https://www.infoq.com/news/2026/01/timeout-joiner-refinements">InfoQ: JEP 525 timeout and joiner refinements</a>.</li>
+<li><a href="https://docs.spring.io/spring-boot/3.4/reference/features/task-execution-and-scheduling.html">Spring Boot reference: Task Execution and Scheduling</a>. <code>spring.threads.virtual.enabled</code> and ignored pool properties.</li>
+<li><a href="https://www.infoq.com/news/2023/12/spring-boot-virtual-threads/">InfoQ: Spring Boot 3.2 delivers support for virtual threads</a>.</li>
+<li><a href="https://docs.spring.io/spring/reference/7.1/integration/rest-clients.html">Spring Framework reference: REST Clients</a> (7.1). RestTemplate deprecated in favor of RestClient; <code>RestClient.create(restTemplate)</code> migration bridge.</li>
+<li><a href="https://qiita.com/s-ota/items/03c28b3b7e0241741818">Qiita: RestTemplate → RestClient</a>, quoting the Spring Framework 7.0 release notes: deprecated in the 7.0 reference, <code>@Deprecated</code> in 7.1, removal planned for 8.0.</li>
+<li><a href="https://www.besthub.dev/articles/why-resttemplate-is-being-retired-in-spring-boot-4-2-and-how-to-switch-to-restclient-4b318f8ba616">Why RestTemplate is being retired in Spring Boot 4.2</a>. Boot 4.2 milestones deprecate <code>RestTemplateBuilder</code> and its auto-configuration.</li>
+<li><a href="https://levelup.gitconnected.com/spring-boot-4-is-retiring-its-http-client-the-swap-slowed-parallel-calls-4x-abc73ffd1787">Spring Boot 4 Is Retiring Its HTTP Client — The Swap Slowed Parallel Calls 4x</a>. <code>RestClient.create()</code> with HttpClient 5 on the classpath.</li>
+<li><a href="https://mail.openjdk.org/pipermail/nio-dev/2025-June/019945.html">nio-dev: 8330940, Impossible to create a socket backlog greater than 200 on Windows 8+</a> (integrated June 2025).</li>
+<li><a href="https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-listen">Microsoft: listen function</a>. A full backlog makes the client fail with WSAECONNREFUSED.</li>
+<li><a href="https://mail.openjdk.org/pipermail/loom-dev/2025-November/008047.html">loom-dev: Virtual vs platform performance at 10K HTTP requests</a> (Nov 2025).</li>
+<li><a href="https://jira.mongodb.com/browse/SERVER-31251">MongoDB SERVER-31251</a>. A small listen backlog under a connection spike.</li>
+<li><a href="https://nljug.org/?p=11467">NLJUG: Your Loom App Quietly Became a Thread Pool Again</a>. A pinning field guide.</li>
+<li><a href="https://www.infoworld.com/article/3713220/java-virtual-threads-hit-with-pinning-issue.html">InfoWorld: Java virtual threads hit with pinning issue</a> (Feb 2024).</li>
+<li><a href="https://mail.openjdk.org/pipermail/loom-dev/2023-August/006024.html">loom-dev: -Djdk.tracePinnedThreads can cause the application to hang</a> (Aug 2023).</li>
+<li><a href="https://bugs.openjdk.org/browse/JDK-8322846">JDK-8322846: Running with -Djdk.tracePinnedThreads set can hang</a> (fixed in 22, backported to 21.0.4).</li>
+<li><a href="https://dev.to/maschiojv/your-loom-app-quietly-became-a-thread-pool-again-a-field-guide-to-virtual-thread-pinning-2a3f">DEV: field guide to virtual thread pinning</a>. The flag was removed in JDK 24.</li>
+<li><a href="https://cr.openjdk.org/~iris/se/11/latestSpec/apidiffs/java/util/concurrent/ForkJoinPool-report.html">ForkJoinPool API</a>. 256 spare threads in the common pool; RejectedExecutionException when a blocked worker can't be replaced.</li>
+<li><a href="https://aicoding.csdn.net/6a5e2c7a662f9a54cb91d988.html">CSDN: Redis "Thread limit exceeded replacing blocked worker"</a>. A production report from a parallel stream.</li>
+<li><a href="https://www.besthub.dev/articles/choosing-between-completablefuture-and-forkjoinpool-for-high-concurrency-java-applications-93fea170676f">Choosing between CompletableFuture and ForkJoinPool</a>. The risks of the default common pool.</li>
+<li><a href="https://mail.openjdk.org/pipermail/net-dev/2023-November/022607.html">net-dev: Reporting issues with HTTP and virtual threads</a> (Nov 2023). HttpClient's default executor is a cached thread pool.</li>
+<li><a href="https://github.com/spring-projects/spring-boot/issues/48479">Spring Boot #48479: RestClient advanced configuration</a>. The HttpClient 5 pool defaults of 5/25.</li>
+<li><a href="https://blog.devgenius.io/mastering-apache-http-client-5-in-java-a-production-grade-guide-4c217e08356d">Mastering Apache HttpClient 5: a production-grade guide</a>. Defaults to change.</li>
+<li><a href="https://hc.apache.org/httpcomponents-client-5.6.x/connection-management.html">Apache HttpClient 5.6: Connection management</a>. Eviction and validateAfterInactivity.</li>
+<li><a href="https://issues.gradle.org/browse/GRADLE-3424">GRADLE-3424</a>. NoHttpResponseException after an HttpClient upgrade.</li>
+<li><a href="https://dev.to/jayesh_shinde/fixing-lost-securitycontext-and-correlation-ids-in-async-calls-with-spring-boot-4pc8">DEV: Fixing lost SecurityContext and correlation IDs in async calls</a>.</li>
+<li><a href="https://www.besthub.dev/articles/async-deep-dive-fixing-transaction-loss-mdc-context-loss-and-silent-exception-swallowing-c4d79d89fdbc">@Async deep dive: MDC context loss and TaskDecorator</a>.</li>
+<li><a href="https://www.infoq.com/news/2026/05/jep-533-jdk-27/">InfoQ: JEP 533 tightens exception handling in structured concurrency</a> (May 2026).</li>
+<li><a href="https://www.infoq.com/news/2026/10/jep-543-jdk-28/">InfoQ: JEP 543 finalizes structured concurrency in JDK 28</a> (Oct 2026).</li>
+<li><a href="https://www.happycoders.eu/java/structured-concurrency-structuredtaskscope/">HappyCoders: Structured Concurrency with StructuredTaskScope</a> (updated June 2026).</li>
+<li><a href="https://openjdk.org/jeps/506">JEP 506: Scoped Values</a> (JDK 25). Finality also confirmed by Lab 7 compiling on 25 without preview flags.</li>
+</ol>
+
+</main>
+<footer><div class="wrap" id="colophon">
+  <h3>Colophon and self-tests</h3>
+  <p>One HTML file, no external requests, no tracking. Works from email, <code>file://</code> or any web server. Scripts drive the calculator, simulator and quiz; everything else reads without them.</p>
+  <p>Labs were run on {{MACHINE}} with OpenJDK {{JDKS}}. The GET benchmark was also run on the Windows desktop (i7-1260P, Windows 11, JDK 21.0.11 and 26). Everything was then inlined into this page by a build script so the source and output shown are exactly what ran. Built {{BUILT}}.</p>
+  <p id="teststatus">Self-tests: <span class="no">not run (scripts disabled?)</span>. If this message stays, download the file and open it directly in a browser.</p>
+  <details><summary>Test log</summary><div id="testlog"></div></details>
+</div></footer>
+
+<script>
+"use strict";
+/* ---------- Little's law ---------- */
+function littles(rate, waitMs, pool){
+  var need = rate * waitMs / 1000;           // requests in flight
+  var ceiling = pool / (waitMs / 1000);       // req/s a pool can sustain
+  return {need: need, ceiling: ceiling, ok: ceiling >= rate};
+}
+function fmt(n){ return Math.round(n).toLocaleString("en-US"); }
+function updateLittle(){
+  var r = +document.getElementById("ll-rate").value, w = +document.getElementById("ll-wait").value, p = +document.getElementById("ll-pool").value;
+  if(!(r>0 && w>0 && p>0)){ document.getElementById("ll-out").textContent = "Enter positive numbers."; return; }
+  var x = littles(r, w, p);
+  document.getElementById("ll-out").innerHTML = "You need <strong>" + fmt(x.need) + "</strong> requests in flight. A " + fmt(p) +
+    "-thread pool tops out at <strong>" + fmt(x.ceiling) + " req/s</strong>. " +
+    (x.ok ? "<span style='color:var(--good)'>The pool is enough; threads aren't your bottleneck.</span>"
+          : "<span style='color:var(--bad)'>The pool caps you at " + Math.round(100*x.ceiling/r) + "% of target. This is the case virtual threads fix.</span>");
+}
+
+/* ---------- Scheduler model ----------
+   Each task: cpu, wait, cpu. FIFO ready queue, no time-slicing.
+   Pinned wait = carrier held. Platform mode = every wait holds the thread. */
+function isPinned(cfg){
+  if(cfg.mode === "platform") return true;
+  if(cfg.blockKind === "native") return true;
+  if(cfg.blockKind === "sync" && cfg.jdk < 24) return true;
+  return false;
+}
+function simulate(cfg){
+  var C = cfg.carriers, N = cfg.tasks, cpu = cfg.cpuMs, blk = cfg.blockMs, pinned = isPinned(cfg);
+  var free = [], lanes = [], i;
+  for(i=0;i<C;i++){ free.push(0); lanes.push([]); }
+  var ready = []; for(i=0;i<N;i++) ready.push({id:i, at:0, phase:0});
+  var done = 0, makespan = 0, mounts = 0;
+  function seg(c, id, s, e, k){ if(e > s) lanes[c].push({task:id, s:s, e:e, k:k}); }
+  while(done < N){
+    ready.sort(function(a,b){ return a.at - b.at || a.id - b.id; });
+    var r = ready.shift();
+    var c = 0; for(i=1;i<C;i++) if(free[i] < free[c]) c = i;
+    var t = Math.max(free[c], r.at); mounts++;
+    if(r.phase === 0){
+      seg(c, r.id, t, t+cpu, "cpu"); t += cpu;
+      if(pinned){
+        seg(c, r.id, t, t+blk, cfg.mode === "platform" ? "blocked" : "pinned"); t += blk;
+        seg(c, r.id, t, t+cpu, "cpu"); t += cpu;
+        done++; makespan = Math.max(makespan, t); free[c] = t;
+      } else {
+        free[c] = t; ready.push({id:r.id, at:t+blk, phase:1});
+      }
+    } else {
+      seg(c, r.id, t, t+cpu, "cpu"); t += cpu;
+      done++; makespan = Math.max(makespan, t); free[c] = t;
+    }
+  }
+  var busy = 0, held = 0;
+  lanes.forEach(function(l){ l.forEach(function(s){ if(s.k==="cpu") busy += s.e-s.s; else held += s.e-s.s; }); });
+  return {makespan: makespan, lanes: lanes, pinned: pinned, mounts: mounts, utilization: makespan ? busy/(makespan*C) : 0, heldMs: held};
+}
+function ganttSVG(res, cfg){
+  var W = 860, laneH = 26, top = 18, left = 74, H = top + res.lanes.length*laneH + 22;
+  var span = Math.max(res.makespan, 1), sx = (W-left-34)/span;
+  var s = '<svg class="gantt" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Timeline of '+res.lanes.length+' '+(cfg.mode==="platform"?"platform threads":"carriers")+' over '+res.makespan+' ms">';
+  var step = niceStep(span);
+  for(var x=0; x<=span; x+=step){ var px = left + x*sx;
+    s += '<line x1="'+px+'" y1="'+(top-4)+'" x2="'+px+'" y2="'+(H-18)+'" stroke="var(--line)"/>';
+    s += '<text x="'+px+'" y="'+(H-4)+'" font-size="11" text-anchor="middle" fill="var(--mute)">'+x+' ms</text>'; }
+  res.lanes.forEach(function(lane, ci){
+    var y = top + ci*laneH;
+    s += '<text x="4" y="'+(y+16)+'" font-size="12" fill="var(--ink)">'+(cfg.mode==="platform"?"thread ":"carrier ")+(ci+1)+'</text>';
+    lane.forEach(function(g){
+      var col = g.k==="cpu" ? "var(--cpu)" : (g.k==="pinned" ? "var(--pin)" : "var(--blk)");
+      var w = Math.max((g.e-g.s)*sx, 1);
+      s += '<rect x="'+(left+g.s*sx)+'" y="'+(y+3)+'" width="'+w+'" height="'+(laneH-8)+'" rx="2" fill="'+col+'"><title>task '+(g.task+1)+': '+g.k+' '+g.s+'–'+g.e+' ms</title></rect>';
+      if(w > 16) s += '<text x="'+(left+g.s*sx+w/2)+'" y="'+(y+17)+'" font-size="10" text-anchor="middle" fill="#fff">'+(g.task+1)+'</text>';
+    });
+  });
+  return s + '</svg>';
+}
+function niceStep(span){ var raw = span/8, p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw/p; return (m<1.5?1:m<3.5?2:m<7.5?5:10)*p; }
+function readSim(){
+  var g = function(id){ return document.getElementById(id); };
+  var clamp = function(v,a,b){ v = Math.round(+v); return isFinite(v) ? Math.min(b, Math.max(a, v)) : a; };
+  return { mode: g("s-mode").value, carriers: clamp(g("s-car").value,1,8), tasks: clamp(g("s-n").value,1,40),
+           cpuMs: clamp(g("s-cpu").value,0,500), blockMs: clamp(g("s-blk").value,0,2000), blockKind: g("s-kind").value, jdk: +g("s-jdk").value };
+}
+function updateSim(){
+  var cfg = readSim(), res = simulate(cfg);
+  document.getElementById("s-clabel").textContent = cfg.mode === "platform" ? "Pool size" : "Carriers";
+  var ideal = 2*cfg.cpuMs + cfg.blockMs;
+  document.getElementById("s-out").innerHTML = "Finished in <strong>" + res.makespan + " ms</strong>. One task alone takes " + ideal +
+    " ms. Carrier time spent running code: " + Math.round(res.utilization*100) + "%.";
+  document.getElementById("s-svg").innerHTML = ganttSVG(res, cfg);
+  var why;
+  if(cfg.mode === "platform") why = "Each platform thread is held for the whole task, waits included, so " + cfg.carriers + " threads finish at most " + cfg.carriers + " tasks per " + ideal + " ms.";
+  else if(res.pinned && cfg.blockKind === "native") why = "Native frames pin on every JDK: the carrier is held through the wait (red).";
+  else if(res.pinned) why = "On JDK 21–23, waiting inside synchronized pins the carrier (red). Switch the JDK to 24+ or use the plain-code wait to see the difference.";
+  else if(cfg.blockMs === 0) why = "No waiting at all, so this is CPU-bound: tasks run back to back on the carriers, just as they would on a platform pool of the same size.";
+  else why = "Each wait unmounts the virtual thread and frees the carrier, so the waits overlap and carriers only carry CPU work.";
+  document.getElementById("s-explain").textContent = why;
+}
+function setSim(v){ for(var k in v) document.getElementById(k).value = v[k]; updateSim(); }
+
+/* ---------- Quiz ---------- */
+var QUIZ = {{QUIZ_JSON}};
+function renderQuiz(){
+  var box = document.getElementById("quizbox");
+  box.querySelectorAll("details.ans").forEach(function(d){ d.style.display = "none"; });
+  box.addEventListener("change", function(e){
+    var m = /^q(\d+)$/.exec(e.target.name); if(!m) return;
+    var qi = +m[1], item = QUIZ[qi], right = +e.target.value === item.a, el = document.getElementById("q"+qi);
+    el.className = "q " + (right ? "right" : "wrong");
+    el.querySelector(".fb").innerHTML = '<span class="verdict" style="color:var(--'+(right?'good':'bad')+')">'+(right?"Right.":"Not quite.")+'</span> '+item.why;
+    scoreQuiz();
+  });
+}
+function scoreQuiz(){
+  var answered = 0, right = 0;
+  QUIZ.forEach(function(item, qi){ var c = document.querySelector('input[name="q'+qi+'"]:checked'); if(c){ answered++; if(+c.value === item.a) right++; } });
+  document.getElementById("quizscore").textContent = answered ? ("Score: " + right + " / " + answered + " answered" + (answered === QUIZ.length ? (right >= 7 ? " — ready to teach it." : " — revisit the sections linked in the explanations.") : "")) : "";
+}
+
+/* ---------- GET benchmark chart ---------- */
+var BENCH = {{BENCH_JSON}};
+function benchRows(machine, n){
+  var d = BENCH.machines[machine];
+  return BENCH.methods.map(function(m){
+    return {method: m.id, label: m.label, cells: d.jdks.map(function(j){
+      return BENCH.data[machine].filter(function(r){ return r.jdk === j && r.method === m.id && r.n === n && r.mode !== "threadlocal"; })[0] || null; })};
+  }).filter(function(row){ return row.cells.some(function(c){ return c; }); });
+}
+var JDKCOL = ["var(--accent2)", "var(--accent)", "var(--tags)"];
+function benchSVG(machine, n, metric){
+  var rows = benchRows(machine, n), jdks = BENCH.machines[machine].jdks;
+  var W = 860, left = 250, right = 120, barH = 12, gap = 3, groupH = jdks.length*(barH+gap) + 10, top = 8;
+  var H = top + rows.length*groupH + 26, vals = [];
+  rows.forEach(function(r){ r.cells.forEach(function(c){ if(c && c[metric] != null) vals.push(c[metric]); }); });
+  var lo = metric === "medianMs" ? 50 : 1, hi = Math.max.apply(null, vals) * 1.15;
+  var lx = function(v){ return left + (Math.log(Math.max(v,lo)) - Math.log(lo)) / (Math.log(hi) - Math.log(lo)) * (W-left-right); };
+  var s = '<svg class="gantt" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+(metric==="medianMs"?"Median time":"Peak platform threads")+' by method and JDK">';
+  var ticks = metric === "medianMs" ? [50,100,200,500,1000,2000,5000,10000,20000] : [1,5,10,20,50,100,200,500];
+  ticks.filter(function(t){ return t <= hi; }).forEach(function(t){ var x = lx(t);
+    s += '<line x1="'+x+'" y1="'+top+'" x2="'+x+'" y2="'+(H-20)+'" stroke="var(--line)"/><text x="'+x+'" y="'+(H-6)+'" font-size="11" text-anchor="middle" fill="var(--mute)">'+(t>=1000? (t/1000)+"k":t)+'</text>'; });
+  rows.forEach(function(r, ri){
+    var y0 = top + ri*groupH;
+    s += '<text x="'+(left-8)+'" y="'+(y0 + groupH/2)+'" font-size="12" text-anchor="end" fill="var(--ink)">'+r.label+'</text>';
+    r.cells.forEach(function(c, ji){
+      var y = y0 + ji*(barH+gap);
+      if(!c){ return; }
+      var bad = c.error || c.forwarded !== c.calls;
+      if(c.error){ s += '<text x="'+(left+4)+'" y="'+(y+barH-2)+'" font-size="11" fill="var(--bad)">JDK '+c.jdk+': failed (thread limit)</text>'; return; }
+      var v = c[metric], x2 = lx(v);
+      s += '<rect x="'+left+'" y="'+y+'" width="'+Math.max(x2-left,2)+'" height="'+barH+'" rx="2" fill="'+JDKCOL[ji % 3]+'"><title>JDK '+c.jdk+' · '+r.label+': '+c.medianMs+' ms, '+c.peakPlatformThreads+' platform threads, forwarded '+c.forwarded+'/'+c.calls+'</title></rect>';
+      s += '<text x="'+(x2+5)+'" y="'+(y+barH-2)+'" font-size="11" fill="'+(bad?'var(--bad)':'var(--mute)')+'">'+v.toLocaleString("en-US")+(metric==="medianMs"?" ms":"")+(bad && !c.error ? " · headers lost" : "")+'</text>';
+    });
+  });
+  return s + '</svg>';
+}
+function updateBench(){
+  var m = document.getElementById("b-machine").value, n = +document.getElementById("b-n").value, metric = document.getElementById("b-metric").value;
+  document.getElementById("b-chart").innerHTML = benchSVG(m, n, metric);
+  document.getElementById("b-legend").innerHTML = BENCH.machines[m].jdks.map(function(j, i){ return '<span><span class="sw" style="background:'+JDKCOL[i%3]+'"></span>JDK '+j+'</span>'; }).join("");
+}
+
+var SPRING = {{SPRING_JSON}};
+var STORM = {{STORM_JSON}};
+/* ---------- Self-tests ---------- */
+function runTests(){
+  var log = [], pass = 0, fail = 0;
+  function t(name, fn){ try { var r = fn(); if(r === true){ pass++; log.push("PASS  " + name); } else { fail++; log.push("FAIL  " + name + "  -> " + r); } } catch(e){ fail++; log.push("FAIL  " + name + "  -> threw " + e); } }
+  var base = {carriers:1, tasks:4, cpuMs:0, blockMs:200};
+  function cfg(o){ var c = {}; for(var k in base) c[k]=base[k]; for(var k2 in o) c[k2]=o[k2]; return c; }
+  t("model: Lab 4 on JDK 21 (sync, 1 carrier) = 800 ms, measured 806–811", function(){ var m = simulate(cfg({mode:"virtual", blockKind:"sync", jdk:21})).makespan; return m === 800 || m; });
+  t("model: Lab 4 on JDK 24+ = 200 ms, measured 206–211", function(){ var m = simulate(cfg({mode:"virtual", blockKind:"sync", jdk:25})).makespan; return m === 200 || m; });
+  t("model: Lab 5 (plain wait) on JDK 21 = 200 ms, measured 214", function(){ var m = simulate(cfg({mode:"virtual", blockKind:"plain", jdk:21})).makespan; return m === 200 || m; });
+  t("model: native wait pins on every JDK", function(){ return simulate(cfg({mode:"virtual", blockKind:"native", jdk:25})).makespan === 800; });
+  t("model: Lab 2 in miniature, 400 tasks on a 20-thread pool = 20 × 100 ms", function(){ var m = simulate({mode:"platform", carriers:20, tasks:400, cpuMs:0, blockMs:100, blockKind:"plain", jdk:25}).makespan; return m === 2000 || m; });
+  t("model: same 400 tasks as virtual threads finish in one wait", function(){ var m = simulate({mode:"virtual", carriers:2, tasks:400, cpuMs:0, blockMs:100, blockKind:"plain", jdk:25}).makespan; return m === 100 || m; });
+  t("model: CPU-bound work is identical on platform and virtual", function(){ var a = simulate({mode:"platform", carriers:2, tasks:8, cpuMs:50, blockMs:0, blockKind:"plain", jdk:25}).makespan, b = simulate({mode:"virtual", carriers:2, tasks:8, cpuMs:50, blockMs:0, blockKind:"plain", jdk:25}).makespan; return a === b || (a+" vs "+b); });
+  t("model: every task's segments are on one carrier at a time (no overlap per lane)", function(){
+    var r = simulate({mode:"virtual", carriers:3, tasks:17, cpuMs:7, blockMs:33, blockKind:"plain", jdk:25});
+    for(var i=0;i<r.lanes.length;i++){ var l = r.lanes[i].slice().sort(function(a,b){return a.s-b.s;}); for(var j=1;j<l.length;j++) if(l[j].s < l[j-1].e) return "overlap on lane "+i; } return true; });
+  t("model: exercise 3 answer (2 carriers, 8 tasks, 10/200 ms) is 880 vs 250", function(){
+    var a = simulate({mode:"virtual", carriers:2, tasks:8, cpuMs:10, blockMs:200, blockKind:"sync", jdk:21}).makespan;
+    var b = simulate({mode:"virtual", carriers:2, tasks:8, cpuMs:10, blockMs:200, blockKind:"sync", jdk:25}).makespan;
+    return (a === 880 && b === 250) || (a+" / "+b); });
+  t("model: exercise 3, JDK 21 needs 8 carriers to match 24+", function(){
+    var target = simulate({mode:"virtual", carriers:2, tasks:8, cpuMs:10, blockMs:200, blockKind:"sync", jdk:25}).makespan;
+    for(var c=1;c<=8;c++){ if(simulate({mode:"virtual", carriers:c, tasks:8, cpuMs:10, blockMs:200, blockKind:"sync", jdk:21}).makespan <= target) return c === 8 || ("matched at "+c); } return "never matched"; });
+  t("Little's law: 5000 req/s × 100 ms = 500 in flight; 200 threads cap at 2000 req/s", function(){ var x = littles(5000,100,200); return (x.need === 500 && x.ceiling === 2000 && !x.ok) || JSON.stringify(x); });
+  t("Little's law matches Lab 2: 10,000 × 0.1 s ÷ 200 = 5 s", function(){ return 10000/littles(1,100,200).ceiling === 5 || "no"; });
+  t("quiz: every answer key points at an existing option", function(){ for(var i=0;i<QUIZ.length;i++) if(!(QUIZ[i].a >= 0 && QUIZ[i].a < QUIZ[i].o.length)) return "q"+(i+1); return true; });
+  t("quiz: 8 questions, each with an explanation", function(){ return QUIZ.length === 8 && QUIZ.every(function(q){ return q.why.length > 20; }) || "bad"; });
+  t("page: every in-page link has a target", function(){ var bad = []; document.querySelectorAll('a[href^="#"]').forEach(function(a){ if(!document.getElementById(a.getAttribute("href").slice(1))) bad.push(a.getAttribute("href")); }); return bad.length === 0 || bad.join(" "); });
+  t("page: no external scripts, styles, images or frames", function(){ var n = document.querySelectorAll('script[src],link[rel=stylesheet],img[src^="http"],iframe,object,embed').length; return n === 0 || (n+" found"); });
+  t("page: every lab output block is filled in", function(){ var bad = 0; document.querySelectorAll("pre.out code").forEach(function(c){ if(c.textContent.trim().length < 5 || /\{\{/.test(c.textContent)) bad++; }); return bad === 0 || (bad+" empty"); });
+  t("page: every external link is https", function(){ var bad = []; document.querySelectorAll('a[href^="http:"]').forEach(function(a){ bad.push(a.href); }); return bad.length === 0 || bad.join(" "); });
+  t("simulator: renders a chart with one lane per carrier", function(){ setSim({"s-mode":"virtual","s-car":"3","s-n":"6","s-cpu":"10","s-blk":"100","s-kind":"plain","s-jdk":"25"}); var svg = document.querySelector("#s-svg svg"); return !!svg && svg.textContent.indexOf("carrier 3") >= 0 || "missing"; });
+  var all = BENCH.data.desktop.concat(BENCH.data.container);
+  t("bench: every explicit-capture run that completed forwarded all four headers on every call", function(){ var bad = all.filter(function(r){ return r.mode === "explicit" && !r.error && r.forwarded !== r.calls; }); return bad.length === 0 || bad.map(function(r){ return r.jdk+" "+r.method; }).join(", "); });
+  t("bench: ThreadLocal context survives the loop only", function(){ var bad = all.filter(function(r){ return r.mode === "threadlocal" && ((r.method === "loop") !== (r.forwarded === r.calls)); }); return bad.length === 0 || bad.map(function(r){ return r.jdk+" "+r.method+" "+r.forwarded; }).join(", "); });
+  t("bench: sendAsync with ThreadLocal loses exactly the callback-built half", function(){ var r = all.filter(function(r){ return r.mode === "threadlocal" && r.method === "cf-async"; }); return r.length > 0 && r.every(function(x){ return x.forwarded * 2 === x.calls; }) || "no"; });
+  t("bench: ScopedValue reaches StructuredTaskScope forks, not executor threads", function(){ var sc = all.filter(function(r){ return r.mode === "scoped"; }); return sc.length > 0 && sc.every(function(r){ return r.method === "sts" ? r.forwarded === r.calls : r.forwarded === 0; }) || "no"; });
+  t("bench: JDK 21 pinning makes the synchronized wrapper at least 5x slower than plain VT on both machines", function(){
+    return ["desktop","container"].every(function(m){ var d = BENCH.data[m]; var f = function(meth){ return d.filter(function(r){ return r.jdk === 21 && r.method === meth && r.n === 1000 && r.mode === "explicit"; })[0].medianMs; }; return f("vt-sync") > 5 * f("vt"); }) || "no"; });
+  t("bench: synchronized wrapper is within 1.5x of plain VT on every JDK 24+", function(){
+    var bad = all.filter(function(r){ if(r.jdk < 24 || r.method !== "vt-sync" || r.mode !== "explicit") return false; var src = r.cores === 16 ? BENCH.data.desktop : BENCH.data.container; var v = src.filter(function(x){ return x.jdk === r.jdk && x.method === "vt" && x.n === r.n && x.mode === "explicit"; })[0]; return r.medianMs > 1.5 * v.medianMs; }); return bad.length === 0 || bad.length + " slower"; });
+  t("bench: Little's law predicts the 64-thread pool on the desktop within 10%", function(){ var d = BENCH.data.desktop.filter(function(r){ return r.method === "cf-pool" && r.n === 1000; }); var loop = BENCH.data.desktop.filter(function(r){ return r.method === "loop" && r.jdk === 21; })[0]; var perCall = loop.medianMs / loop.calls; var pred = Math.ceil(1000/64) * 2 * perCall; return d.every(function(r){ return Math.abs(r.medianMs - pred) / pred < 0.1; }) || ("pred "+Math.round(pred)); });
+  t("bench: chart renders a bar or failure label for every row", function(){ document.getElementById("b-machine").value = "container"; document.getElementById("b-n").value = "1000"; updateBench(); var svg = document.querySelector("#b-chart svg"); return !!svg && svg.textContent.indexOf("failed") >= 0 && svg.querySelectorAll("rect").length >= 15 || "bad chart"; });
+  document.getElementById("b-machine").value = "desktop"; document.getElementById("b-n").value = "1000"; updateBench();
+  var SM = {}; SPRING.forEach(function(r){ SM[r.machine + "|" + r.config] = 1; });
+  var sget = function(mc, sc, n, kind, fac){ return SPRING.filter(function(r){ return (r.machine + "|" + r.config) === mc && r.scenario === sc && r.n === n && r.kind === (kind || "main") && r.factory === (fac || "hc5-tuned"); })[0]; };
+  var perCall = function(mc){ var l = sget(mc, "rt-loop", 200); return l.medianMs / l.calls; };
+  t("spring: every run with a TaskDecorator or explicit headers forwarded every call", function(){ var bad = SPRING.filter(function(r){ return !r.error && r.scenario.indexOf("nodec") < 0 && r.forwarded !== r.calls; }); return bad.length === 0 || bad.map(function(r){ return r.machine+" "+r.config+" "+r.scenario; }).join(", "); });
+  t("spring: without a TaskDecorator, pool and virtual threads forward nothing", function(){ var r = SPRING.filter(function(r){ return r.scenario.indexOf("nodec") >= 0; }); return r.length >= 5 && r.every(function(x){ return x.forwarded === 0; }) || "no"; });
+  t("spring: HC5 default pool is at least 10x slower than a sized pool on every machine and stack", function(){ var bad = Object.keys(SM).filter(function(mc){ var e = sget(mc, SPRING.filter(function(r){ return (r.machine+"|"+r.config) === mc && r.kind === "factory"; })[0].scenario, 1000, "factory", "hc5-default"), g = sget(mc, e.scenario, 1000, "factory", "hc5-tuned"); return !(e.medianMs > 10 * g.medianMs); }); return bad.length === 0 || bad.join(", "); });
+  t("spring: HC5 default behaves like 5 connections (2,000 calls × per-call time ÷ 5, within 15%)", function(){ var bad = Object.keys(SM).filter(function(mc){ var e = SPRING.filter(function(r){ return (r.machine+"|"+r.config) === mc && r.kind === "factory" && r.factory === "hc5-default"; })[0]; var pred = 2000 * perCall(mc) / 5; return Math.abs(e.medianMs - pred) / pred > 0.15; }); return bad.length === 0 || bad.join(", "); });
+  t("spring: Little's law predicts the 8- and 64-thread pools within 15% on every machine", function(){ var bad = []; Object.keys(SM).forEach(function(mc){ [["rt-boot8", 8], ["rt-pool", 64]].forEach(function(p){ var r = sget(mc, p[0], 1000); var pred = Math.ceil(1000 / p[1]) * 2 * perCall(mc); if(Math.abs(r.medianMs - pred) / pred > 0.15) bad.push(mc + " " + p[0] + " " + r.medianMs + " vs " + Math.round(pred)); }); }); return bad.length === 0 || bad.join(", "); });
+  t("spring: the limited virtual-thread bean is at least 2.5x faster than the 64-thread pool at N=1000 on Java 25", function(){ var bad = Object.keys(SM).filter(function(mc){ return mc.indexOf("Java 25") >= 0; }).filter(function(mc){ var l = sget(mc, "rc-vt-limit", 1000); return !(l && !l.error && sget(mc, "rc-pool", 1000).medianMs > 2.5 * l.medianMs); }); return bad.length === 0 || bad.join(", "); });
+  t("spring: Little's law predicts the limit-200 bean (5 waves) within 30% on every machine", function(){ var bad = Object.keys(SM).filter(function(mc){ return mc.indexOf("Java 25") >= 0; }).filter(function(mc){ var l = sget(mc, "rc-vt-limit", 1000), pred = 5 * 2 * perCall(mc); return Math.abs(l.medianMs - pred) / pred > 0.3; }); return bad.length === 0 || bad.join(", "); });
+  t("storm: with the server on JDK 26 (JDK-8330940), unlimited cold fan-out succeeded at every size up to 2,000", function(){ var e = STORM.filter(function(r){ return r.echoJdk === "openjdk-26"; }); return e.length >= 4 && e.every(function(r){ return !r.error && r.forwarded === r.calls; }) && e.some(function(r){ return r.n === 2000; }) || "no"; });
+  t("storm: with a limit of 200, every cold start succeeded on both machines", function(){ var l = STORM.filter(function(r){ return r.scenario === "rc-vt-limit"; }); return l.length >= 8 && l.every(function(r){ return !r.error && r.forwarded === r.calls; }) || "no"; });
+  t("storm: unlimited cold fan-out was refused on the desktop at 500+ and never on Linux", function(){ var d = STORM.filter(function(r){ return r.scenario === "rc-vt" && r.machine === "desktop" && !r.echoJdk; }), c = STORM.filter(function(r){ return r.scenario === "rc-vt" && r.machine === "container"; }); var ok = d.every(function(r){ return (r.n >= 500) === !!r.error; }) && c.every(function(r){ return !r.error; }); return ok && d.length > 0 && c.length > 0 || "no"; });
+  t("spring: Java 17 → 25 with the same Boot 3.5 pool changes time by under 10% on every machine", function(){ var bad = ["desktop", "container"].filter(function(m){ var a = sget(m + "|Java 17 + Boot 3.5", "rt-pool", 1000), b = sget(m + "|Java 25 + Boot 3.5", "rt-pool", 1000); return a && b && Math.abs(a.medianMs - b.medianMs) / a.medianMs >= 0.1; }); return bad.length === 0 || bad.join(", "); });
+  setSim({"s-mode":"virtual","s-car":"2","s-n":"8","s-cpu":"10","s-blk":"200","s-kind":"sync","s-jdk":"21"});
+  var st = document.getElementById("teststatus");
+  st.innerHTML = "Self-tests: " + (fail === 0 ? '<span class="ok">' + pass + '/' + (pass+fail) + ' passed</span>' : '<span class="no">' + fail + ' failed</span> (' + pass + ' passed)') + ". Open the log for details.";
+  document.getElementById("testlog").textContent = log.join("\n") + "\n\n" + navigator.userAgent;
+  window.__vtTests = {pass: pass, fail: fail, log: log};
+}
+
+/* ---------- Wire up ---------- */
+document.addEventListener("DOMContentLoaded", function(){
+  ["ll-rate","ll-wait","ll-pool"].forEach(function(id){ document.getElementById(id).addEventListener("input", updateLittle); });
+  updateLittle();
+  ["s-mode","s-car","s-n","s-cpu","s-blk","s-kind","s-jdk"].forEach(function(id){ var el = document.getElementById(id); el.addEventListener("input", updateSim); el.addEventListener("change", updateSim); });
+  document.getElementById("s-preset1").addEventListener("click", function(){ setSim({"s-mode":"virtual","s-car":"1","s-n":"4","s-cpu":"0","s-blk":"200","s-kind":"sync","s-jdk":"21"}); });
+  document.getElementById("s-preset2").addEventListener("click", function(){ setSim({"s-mode":"platform","s-car":"4","s-n":"40","s-cpu":"0","s-blk":"100","s-kind":"plain","s-jdk":"25"}); });
+  document.getElementById("s-preset3").addEventListener("click", function(){ setSim({"s-mode":"virtual","s-car":"2","s-n":"8","s-cpu":"50","s-blk":"0","s-kind":"plain","s-jdk":"25"}); });
+  ["b-machine","b-n","b-metric"].forEach(function(id){ document.getElementById(id).addEventListener("change", updateBench); });
+  updateBench();
+  renderQuiz();
+  runTests();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,2 @@
+FAIL [Field <app.RequestContext.USER> has raw type java.lang.ThreadLocal in (RequestContext.java:0)]
+FAIL [Method <app.Cache.load(java.lang.String)> has modifier SYNCHRONIZED in (Cache.java:5)]

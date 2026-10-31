@@ -1,0 +1,1 @@
+25: 4 x 200 ms in synchronized took 209 ms

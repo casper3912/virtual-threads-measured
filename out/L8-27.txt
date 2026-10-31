@@ -1,0 +1,2 @@
+user42, 3 orders in 163 ms
+failed fast after 57 ms: inventory down (sibling cancelled)
