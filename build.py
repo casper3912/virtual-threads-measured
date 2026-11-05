@@ -231,6 +231,36 @@ def snum(m):
         sys.exit(f"bad spring placeholder {m.group(0)}")
     return ms(r["medianMs"])
 
+# ---------- Slides tab ----------
+import base64
+def slides_section():
+    sdir = ROOT / "slides"
+    notes = json.loads((sdir / "notes.json").read_text(encoding="utf-8"))
+    deck = (sdir / "virtual-threads-measured.pptx").read_bytes()
+    figs = []
+    for s_ in notes:
+        img = sdir / "img" / f"slide-{s_['n']:02d}.webp"
+        if not img.exists():
+            sys.exit(f"missing slide image {img}; run slides/render.py")
+        b64 = base64.b64encode(img.read_bytes()).decode()
+        t = html.escape(s_["title"] or f"Slide {s_['n']}")
+        figs.append(f'<figure id="slide-{s_["n"]}"><img src="data:image/webp;base64,{b64}" alt="Slide {s_["n"]}: {t}" width="1280" height="720" loading="lazy">'
+                    f'<figcaption>{s_["n"]}. {t}</figcaption><details><summary>Speaker notes</summary><div class="notes">{html.escape(s_["notes"])}</div></details></figure>')
+    href = "data:application/vnd.openxmlformats-officedocument.presentationml.presentation;base64," + base64.b64encode(deck).decode()
+    return f"""<section id="slides" class="wrap slides-panel" role="tabpanel" aria-labelledby="tab-slides">
+<h2 id="slides-h">The talk: Virtual Threads, Measured</h2>
+<p>{len(notes)} slides with speaker notes, presented November 11, 2026. Click the slide or use the arrow keys to move through it; F goes full screen. The PowerPoint has native charts built from the same measured results as this page, plus clickable references: <a id="pptx-download" download="virtual-threads-measured.pptx" href="{href}">download the .pptx ({len(deck)//1024} KB)</a>.</p>
+<div id="sv" class="sv" hidden>
+<div id="sv-stage" class="sv-stage" title="Click for the next slide"><img id="sv-img" alt="" width="1280" height="720"></div>
+<div class="sv-bar"><button type="button" class="ghost" id="sv-prev" aria-label="Previous slide">&larr; Prev</button><span class="count" id="sv-count" aria-live="polite"></span><button type="button" class="ghost" id="sv-next" aria-label="Next slide">Next &rarr;</button><span class="ttl" id="sv-title"></span><label class="small"><input type="checkbox" id="sv-notes-toggle" checked> Speaker notes</label><button type="button" class="ghost" id="sv-full">Full screen</button></div>
+<div class="sv-notes" id="sv-notes"></div>
+<div class="sv-thumbs" id="sv-thumbs" aria-label="All slides"></div>
+</div>
+<div id="slide-list" class="slide-list">
+{chr(10).join(figs)}
+</div>
+</section>"""
+
 def per_call(machine):
     r = find(machine, 21, "loop", 200)
     return f"{r['medianMs'] / r['calls']:.1f}"
@@ -251,6 +281,7 @@ page = page.replace("{{CTX_TABLE}}", ctx_table())
 page = re.sub(r"\{\{SPRING_MAIN:([a-z]+)\}\}", lambda m: spring_main(m.group(1)), page)
 page = re.sub(r"\{\{SPRING_FACTORY:([a-z]+)\}\}", lambda m: spring_factory(m.group(1)), page)
 page = page.replace("{{SPRING_CONTEXT}}", spring_context())
+page = page.replace("{{SLIDES_SECTION}}", slides_section())
 page = page.replace("{{STORM_TABLE}}", storm_table(True)).replace("{{STORM_TABLE_SMALL}}", storm_table(False))
 page = page.replace("{{STORM_JSON}}", json.dumps(STORM))
 page = re.sub(r"\{\{S:([^}]+)\}\}", snum, page)

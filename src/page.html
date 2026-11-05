@@ -32,6 +32,27 @@ nav.top .wrap{display:flex;gap:4px;padding:6px 20px}
 nav.top a{display:inline-block;padding:6px 10px;border-radius:6px;text-decoration:none;color:var(--ink);font-size:.92rem}
 nav.top a:hover,nav.top a:focus{background:var(--code)}
 nav.top .sep{color:var(--line);padding:6px 2px}
+nav.top .tab{font-weight:700;border:1px solid var(--line);margin-right:2px}
+nav.top .tab[aria-selected="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
+body.slides-mode nav.top .sec{display:none}
+.slides-panel{padding-bottom:20px}
+.sv{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px;margin:12px 0}
+.sv-stage{position:relative;background:#0b1114;border-radius:8px;overflow:hidden}
+.sv-stage img{display:block;width:100%;height:auto;aspect-ratio:16/9}
+.sv-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.sv-bar .count{font-weight:700;min-width:64px}
+.sv-bar .ttl{color:var(--mute);font-size:.92rem;flex:1 1 200px}
+.sv-notes{background:var(--code);border-radius:8px;padding:10px 14px;margin-top:10px;white-space:pre-wrap;font-size:.95rem}
+.sv-thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-top:12px}
+.sv-thumbs button{padding:0;border:2px solid transparent;background:none;border-radius:6px;overflow:hidden;cursor:pointer}
+.sv-thumbs button[aria-current="true"]{border-color:var(--accent2)}
+.sv-thumbs img{display:block;width:100%;height:auto}
+.sv-stage:fullscreen{display:flex;align-items:center;justify-content:center;background:#000}
+.sv-stage:fullscreen img{width:100vw;height:100vh;object-fit:contain}
+.slide-list figure{margin:0 0 18px}
+.slide-list img{width:100%;height:auto;border:1px solid var(--line);border-radius:6px}
+.slide-list figcaption{font-weight:600;margin:4px 0}
+
 .tracks{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px}
 .track{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--bg)}
 .track b{display:block;margin-bottom:4px}
@@ -86,24 +107,25 @@ footer{margin-top:60px;border-top:1px solid var(--line);padding:24px 0 60px;colo
 </style>
 </head>
 <body>
-<header class="hero">
+<header class="hero" id="top">
   <div class="wrap">
     <h1>Virtual Threads, Measured</h1>
     <p class="sub">A single-page course for <em>learning</em> and <em>teaching</em> Java virtual threads. Every timing on this page came from a program you can read here, run on real JDKs (21, 25 and 27) before the page was built.</p>
     <p class="small">Tags: <span class="tag m">MEASURED</span> ran here, output shown · <span class="tag s">SOURCED</span> from a JEP or official doc (see <a href="#sources">Sources</a>) · <span class="tag i">INFERRED</span> reasoning, not tested. Machine for all measurements: {{MACHINE}}.</p>
     <div class="tracks">
       <div class="track"><b>Learning it?</b> Read top to bottom. About 90 minutes with the labs.
-        <ol><li><a href="#why">Why they exist</a></li><li><a href="#model">The mental model</a></li><li><a href="#sim">Play with the simulator</a></li><li><a href="#pinning">Pinning by JDK version</a></li><li><a href="#prod">Using them in production</a></li><li><a href="#bench">GET requests: loop vs CompletableFuture vs virtual threads</a></li><li><a href="#spring">Spring: executor beans, RestTemplate → RestClient, Java 17 → 25</a></li><li><a href="#field">What we hit, and what others have reported</a></li><li><a href="#quiz">Check yourself</a></li></ol></div>
+        <ol><li><a href="#why">Why they exist</a></li><li><a href="#model">The mental model</a></li><li><a href="#sim">Play with the simulator</a></li><li><a href="#pinning">Pinning by JDK version</a></li><li><a href="#prod">Using them in production</a></li><li><a href="#bench">GET requests: loop vs CompletableFuture vs virtual threads</a></li><li><a href="#slides">The talk: slides with speaker notes</a></li><li><a href="#spring">Spring: executor beans, RestTemplate → RestClient, Java 17 → 25</a></li><li><a href="#field">What we hit, and what others have reported</a></li><li><a href="#quiz">Check yourself</a></li></ol></div>
       <div class="track"><b>Teaching it?</b> Jump to the <a href="#teach">teaching kit</a>: a three-session plan, the misconceptions students bring, graded exercises, a review checklist, and the guardrails to put in CI.
         <ol><li><a href="#plan">Session plan</a></li><li><a href="#myths">Misconceptions</a></li><li><a href="#exercises">Exercises</a></li><li><a href="#review">Review checklist</a></li><li><a href="#guardrails">Guardrails for AI-written code</a></li></ol></div>
     </div>
   </div>
 </header>
-<nav class="top" aria-label="Sections"><div class="wrap">
-  <a href="#why">Why</a><a href="#model">Model</a><a href="#api">API</a><a href="#fit">Fit</a><a href="#sim">Simulator</a><a href="#pinning">Pinning</a><a href="#limits">Limits</a><a href="#context">Context</a><a href="#structured">Structured</a><a href="#observe">Observe</a><a href="#prod">Production</a><a href="#bench">GET bench</a><a href="#spring">Spring</a><a href="#field">Field reports</a><span class="sep">|</span><a href="#teach">Teach</a><a href="#quiz">Quiz</a><a href="#glossary">Glossary</a><a href="#sources">Sources</a><a href="#colophon">Tests</a>
+<nav class="top" aria-label="Sections"><div class="wrap" role="tablist" aria-label="Page views">
+  <a class="tab" role="tab" id="tab-course" href="#top" aria-controls="course" aria-selected="true">Course</a><a class="tab" role="tab" id="tab-slides" href="#slides" aria-controls="slides" aria-selected="false">Slides</a><span class="sep sec">|</span>
+  <a class="sec" href="#why">Why</a><a class="sec" href="#model">Model</a><a class="sec" href="#api">API</a><a class="sec" href="#fit">Fit</a><a class="sec" href="#sim">Simulator</a><a class="sec" href="#pinning">Pinning</a><a class="sec" href="#limits">Limits</a><a class="sec" href="#context">Context</a><a class="sec" href="#mapconcurrent">Streams</a><a class="sec" href="#structured">Structured</a><a class="sec" href="#observe">Observe</a><a class="sec" href="#prod">Production</a><a class="sec" href="#bench">GET bench</a><a class="sec" href="#spring">Spring</a><a class="sec" href="#field">Field reports</a><span class="sep sec">|</span><a class="sec" href="#teach">Teach</a><a class="sec" href="#quiz">Quiz</a><a class="sec" href="#glossary">Glossary</a><a class="sec" href="#sources">Sources</a><a class="sec" href="#colophon">Tests</a>
 </div></nav>
 
-<main class="wrap">
+<main class="wrap" id="course" role="tabpanel" aria-labelledby="tab-course">
 
 <h2 id="why">1. Why virtual threads exist</h2>
 <p>Most server code is written thread-per-request: one thread handles one request from start to finish, and when it calls a database or another service it simply waits. That style is easy to read, debug and profile. Its problem is cost. A platform thread is a thin wrapper around an operating-system thread, with a large reserved stack and a kernel scheduling entry, so a JVM can only afford a few thousand of them. <span class="tag s">SOURCED</span></p>
@@ -229,6 +251,29 @@ footer{margin-top:60px;border-top:1px solid var(--line);padding:24px 0 60px;colo
 <p class="small">On JDK 21 the same file fails to compile without <code>--enable-preview</code>, because <code>ScopedValue</code> was still a preview API there.</p>
 </div>
 
+<h3 id="mapconcurrent">Parallel streams don't use virtual threads; Gatherers.mapConcurrent does</h3>
+<p>A tempting shortcut for a batch of blocking calls is <code>ids.parallelStream().map(this::fetch)</code>. Parallel streams always run on the common <code>ForkJoinPool</code>, which has one worker per core, and they never use virtual threads. That means blocking I/O runs a core's worth at a time. It's also the pool that refused more threads in our GET benchmark, and a production report hit the same <code>RejectedExecutionException</code> from Redis calls inside a parallel stream (§14). <span class="tag s">SOURCED</span></p>
+<p>Since JDK 24 the stream API has a replacement built for this: <code>Gatherers.mapConcurrent(maxConcurrency, fn)</code>. It runs each element on its own virtual thread, never has more than <code>maxConcurrency</code> running at once, and returns results in input order. The cap doubles as connection-storm protection (§13). <span class="tag s">SOURCED</span> <span class="tag m">MEASURED</span></p>
+<div class="lab"><h4>Lab 12 · Parallel stream vs mapConcurrent, and which context survives <span class="tag m">MEASURED</span></h4>
+<pre><code>{{SRC:L12MapConcurrent.java}}</code></pre>
+<div class="cmd">$ java L12MapConcurrent.java &nbsp;(JDK 25, 2 cores)</div>
+<pre class="out"><code>{{OUT:L12-25}}</code></pre>
+<p class="small">JDK 27 gave the same results ({{OUT_INLINE:L12-27}}). The parallel stream's 5 s is 200 × 50 ms ÷ 2: one common-pool worker plus the calling thread on this 2-core machine. On 16 cores it would be roughly 8× faster, still bounded by the core count, not by how many calls could wait at once.</p>
+</div>
+<ul>
+<li><b>The parallel stream lost the context on exactly half the calls</b>, because the calling thread processes elements too. A bug that shows up only sometimes is the hardest kind to find.</li>
+<li><b><code>mapConcurrent</code> + <code>ThreadLocal</code>: 0 of 200.</b> Each element runs on a new virtual thread.</li>
+<li><b><code>InheritableThreadLocal</code> worked, 200 of 200</b>, because <code>mapConcurrent</code> creates its threads from the calling thread. Don't depend on it, though: MDC and Spring's <code>RequestContextHolder</code> aren't inheritable by default.</li>
+<li><b><code>ScopedValue</code>: 0 of 200.</b> It reaches <code>StructuredTaskScope</code> forks only (§9).</li>
+<li><b>A captured variable, or a small <code>withContext(fn)</code> wrapper</b> that sets the <code>ThreadLocal</code> on the worker and restores it in <code>finally</code>, worked every time. This is the <code>TaskDecorator</code> idea applied to a single function.</li>
+</ul>
+<pre><code>// Java 25: fan out a batch with a cap, results in order, headers carried explicitly
+var ctx = ForwardedHeaders.current();                      // capture on the request thread
+List&lt;Price&gt; prices = ids.stream()
+    .gather(Gatherers.mapConcurrent(200, id -&gt; client.price(id, ctx)))
+    .toList();</code></pre>
+<p class="small">On Java 17 there's no <code>mapConcurrent</code>. Use an executor bean with a <code>TaskDecorator</code> and <code>CompletableFuture</code> (§13), and keep blocking calls out of parallel streams.</p>
+
 <h2 id="structured">9. Structured concurrency (still preview)</h2>
 <p>Cheap threads make it easy to fork lots of work, and easy to leak it: a subtask that outlives its caller, or a failure in one branch while the others keep running. <code>StructuredTaskScope</code> ties forked subtasks to a lexical block. The block can't exit until they finish, a failure cancels the siblings, and thread dumps show the parent–child tree. <span class="tag s">SOURCED</span></p>
 <div class="lab"><h4>Lab 8 · Fork two calls, fail fast <span class="tag m">MEASURED</span></h4>
@@ -314,6 +359,7 @@ footer{margin-top:60px;border-top:1px solid var(--line);padding:24px 0 60px;colo
 <tr><td>"Never use synchronized with virtual threads."</td><td>True advice on JDK 21–23, outdated on 24+.</td><td>Lab 4 on 21 vs 25</td></tr>
 <tr><td>"I need reactive code to scale."</td><td>For I/O-bound thread-per-request code, virtual threads remove the thread ceiling without async rewrites.</td><td>Lab 2</td></tr>
 <tr><td>"More virtual threads means more database throughput."</td><td>The database's connection limit is still the limit; you've just moved the queue.</td><td>Lab 6, §7</td></tr>
+<tr><td>"A parallel stream will run my blocking calls on virtual threads."</td><td>Parallel streams always use the common ForkJoinPool. On Java 25 use <code>Gatherers.mapConcurrent</code>.</td><td>Lab 12</td></tr>
 <tr><td>"Switching to virtual threads keeps my request context."</td><td>A new virtual thread starts with empty ThreadLocals. Capture the context explicitly, or use ScopedValue with StructuredTaskScope.</td><td><a href="#forwarding">Forwarding table</a></td></tr>
 <tr><td>"Blocking calls on the common pool are fine, it adds threads."</td><td>It adds threads only up to a limit, then throws RejectedExecutionException.</td><td><a href="#bench-findings">Finding 6</a></td></tr>
 <tr><td>"Structured concurrency is part of Java 21."</td><td>Preview from 21 to 27, with the API changing along the way; final in JDK 28.</td><td>Lab 8, §14</td></tr>
@@ -409,10 +455,12 @@ footer{margin-top:60px;border-top:1px solid var(--line);padding:24px 0 60px;colo
 <li><a href="https://www.infoq.com/news/2026/05/jep-533-jdk-27/">InfoQ: JEP 533 tightens exception handling in structured concurrency</a> (May 2026).</li>
 <li><a href="https://www.infoq.com/news/2026/10/jep-543-jdk-28/">InfoQ: JEP 543 finalizes structured concurrency in JDK 28</a> (Oct 2026).</li>
 <li><a href="https://www.happycoders.eu/java/structured-concurrency-structuredtaskscope/">HappyCoders: Structured Concurrency with StructuredTaskScope</a> (updated June 2026).</li>
+<li><a href="https://openjdk.org/jeps/485">JEP 485: Stream Gatherers</a> (final in JDK 24). <code>Gatherers.mapConcurrent</code>.</li>
 <li><a href="https://openjdk.org/jeps/506">JEP 506: Scoped Values</a> (JDK 25). Finality also confirmed by Lab 7 compiling on 25 without preview flags.</li>
 </ol>
 
 </main>
+{{SLIDES_SECTION}}
 <footer><div class="wrap" id="colophon">
   <h3>Colophon and self-tests</h3>
   <p>One HTML file, no external requests, no tracking. Works from email, <code>file://</code> or any web server. Scripts drive the calculator, simulator and quiz; everything else reads without them.</p>
@@ -586,6 +634,65 @@ function updateBench(){
 
 var SPRING = {{SPRING_JSON}};
 var STORM = {{STORM_JSON}};
+/* ---------- Slides tab ---------- */
+var SV = {i: 0, figs: [], active: false};
+function svShow(i){
+  var n = SV.figs.length; if(!n) return;
+  SV.i = (i + n) % n;
+  var f = SV.figs[SV.i];
+  document.getElementById("sv-img").src = f.querySelector("img").src;
+  document.getElementById("sv-img").alt = f.querySelector("img").alt;
+  document.getElementById("sv-count").textContent = (SV.i + 1) + " / " + n;
+  document.getElementById("sv-title").textContent = f.querySelector("figcaption").textContent;
+  document.getElementById("sv-notes").textContent = f.querySelector(".notes").textContent;
+  document.querySelectorAll(".sv-thumbs button").forEach(function(b, k){ b.setAttribute("aria-current", k === SV.i ? "true" : "false"); });
+}
+function showTab(name){
+  var slides = name === "slides";
+  SV.active = slides;
+  document.body.classList.toggle("slides-mode", slides);
+  document.getElementById("course").hidden = slides;
+  document.getElementById("slides").hidden = !slides;
+  document.getElementById("tab-course").setAttribute("aria-selected", slides ? "false" : "true");
+  document.getElementById("tab-slides").setAttribute("aria-selected", slides ? "true" : "false");
+}
+function routeHash(){
+  var h = location.hash, m = /^#slide-(\d+)$/.exec(h);
+  if(h === "#slides" || m){ showTab("slides"); if(m) svShow(+m[1] - 1); window.scrollTo(0, 0); }
+  else {
+    var wasSlides = SV.active; showTab("course");
+    var el = h && h.length > 1 && document.getElementById(h.slice(1));
+    if(wasSlides && el) el.scrollIntoView();
+  }
+}
+function initSlides(){
+  var list = document.getElementById("slide-list"); if(!list) return;
+  SV.figs = Array.prototype.slice.call(list.querySelectorAll("figure"));
+  list.hidden = true;
+  document.getElementById("sv").hidden = false;
+  var thumbs = document.getElementById("sv-thumbs");
+  SV.figs.forEach(function(f, k){
+    var b = document.createElement("button"); b.type = "button"; b.title = (k + 1) + ". " + f.querySelector("figcaption").textContent;
+    var im = document.createElement("img"); im.src = f.querySelector("img").src; im.alt = ""; im.loading = "lazy";
+    b.appendChild(im); b.addEventListener("click", function(){ svShow(k); }); thumbs.appendChild(b);
+  });
+  document.getElementById("sv-prev").addEventListener("click", function(){ svShow(SV.i - 1); });
+  document.getElementById("sv-next").addEventListener("click", function(){ svShow(SV.i + 1); });
+  document.getElementById("sv-notes-toggle").addEventListener("change", function(e){ document.getElementById("sv-notes").hidden = !e.target.checked; });
+  document.getElementById("sv-full").addEventListener("click", function(){ var st = document.getElementById("sv-stage"); if(st.requestFullscreen) st.requestFullscreen(); });
+  document.getElementById("sv-stage").addEventListener("click", function(){ svShow(SV.i + 1); });
+  document.addEventListener("keydown", function(e){
+    if(!SV.active || /INPUT|SELECT|TEXTAREA/.test((e.target || {}).tagName || "")) return;
+    if(e.key === "ArrowRight" || e.key === "PageDown" || e.key === " "){ e.preventDefault(); svShow(SV.i + 1); }
+    else if(e.key === "ArrowLeft" || e.key === "PageUp"){ e.preventDefault(); svShow(SV.i - 1); }
+    else if(e.key === "Home"){ svShow(0); } else if(e.key === "End"){ svShow(SV.figs.length - 1); }
+    else if(e.key === "f"){ document.getElementById("sv-full").click(); }
+  });
+  document.getElementById("tab-course").addEventListener("click", function(e){ e.preventDefault(); history.pushState(null, "", location.pathname + location.search); showTab("course"); window.scrollTo(0, 0); });
+  window.addEventListener("hashchange", routeHash);
+  svShow(0);
+}
+
 /* ---------- Self-tests ---------- */
 function runTests(){
   var log = [], pass = 0, fail = 0;
@@ -644,6 +751,14 @@ function runTests(){
   t("storm: with a limit of 200, every cold start succeeded on both machines", function(){ var l = STORM.filter(function(r){ return r.scenario === "rc-vt-limit"; }); return l.length >= 8 && l.every(function(r){ return !r.error && r.forwarded === r.calls; }) || "no"; });
   t("storm: unlimited cold fan-out was refused on the desktop at 500+ and never on Linux", function(){ var d = STORM.filter(function(r){ return r.scenario === "rc-vt" && r.machine === "desktop" && !r.echoJdk; }), c = STORM.filter(function(r){ return r.scenario === "rc-vt" && r.machine === "container"; }); var ok = d.every(function(r){ return (r.n >= 500) === !!r.error; }) && c.every(function(r){ return !r.error; }); return ok && d.length > 0 && c.length > 0 || "no"; });
   t("spring: Java 17 → 25 with the same Boot 3.5 pool changes time by under 10% on every machine", function(){ var bad = ["desktop", "container"].filter(function(m){ var a = sget(m + "|Java 17 + Boot 3.5", "rt-pool", 1000), b = sget(m + "|Java 25 + Boot 3.5", "rt-pool", 1000); return a && b && Math.abs(a.medianMs - b.medianMs) / a.medianMs >= 0.1; }); return bad.length === 0 || bad.join(", "); });
+  t("slides: every slide has an image, a title and speaker notes", function(){ var f = document.querySelectorAll("#slide-list figure"); var bad = Array.prototype.filter.call(f, function(x){ return !/^data:image\/webp;base64,/.test(x.querySelector("img").src) || !x.querySelector("figcaption").textContent.trim() || x.querySelector(".notes").textContent.trim().length < 20; }); return f.length >= 20 && bad.length === 0 || (f.length + " slides, " + bad.length + " incomplete"); });
+  t("slides: the PowerPoint download is an embedded .pptx (zip) file", function(){ var a = document.getElementById("pptx-download"); return !!a && a.getAttribute("download") === "virtual-threads-measured.pptx" && a.href.indexOf("data:application/vnd.openxmlformats-officedocument.presentationml.presentation;base64,UEsDB") === 0 || "bad link"; });
+  t("slides: the tab shows the viewer, next/previous wrap, and Course comes back", function(){
+    showTab("slides"); var ok = !document.getElementById("slides").hidden && document.getElementById("course").hidden;
+    svShow(0); document.getElementById("sv-prev").click(); var last = document.getElementById("sv-count").textContent === SV.figs.length + " / " + SV.figs.length;
+    document.getElementById("sv-next").click(); var first = document.getElementById("sv-count").textContent === "1 / " + SV.figs.length;
+    showTab("course"); var back = !document.getElementById("course").hidden && document.getElementById("slides").hidden;
+    return ok && last && first && back || [ok, last, first, back].join(","); });
   setSim({"s-mode":"virtual","s-car":"2","s-n":"8","s-cpu":"10","s-blk":"200","s-kind":"sync","s-jdk":"21"});
   var st = document.getElementById("teststatus");
   st.innerHTML = "Self-tests: " + (fail === 0 ? '<span class="ok">' + pass + '/' + (pass+fail) + ' passed</span>' : '<span class="no">' + fail + ' failed</span> (' + pass + ' passed)') + ". Open the log for details.";
@@ -662,7 +777,9 @@ document.addEventListener("DOMContentLoaded", function(){
   ["b-machine","b-n","b-metric"].forEach(function(id){ document.getElementById(id).addEventListener("change", updateBench); });
   updateBench();
   renderQuiz();
+  initSlides();
   runTests();
+  routeHash();
 });
 </script>
 </body>

@@ -1,0 +1,122 @@
+[
+ {
+  "n": 1,
+  "title": "Virtual Threads, Measured",
+  "notes": "Every number in this talk came from a program I ran on JDK 17, 21, 25, 26 and 27, on a 16-thread Windows desktop and a 2-core Linux machine. The full write-up, the code and the raw results are on the site at the end. Plan: why virtual threads exist, how they work, the version that matters, a GET-request benchmark with header forwarding, then the Spring migration we're actually facing."
+ },
+ {
+  "n": 2,
+  "title": "The one sentence to remember",
+  "notes": "If people remember one thing, make it this. Virtual threads don't run your code faster. They let you have tens of thousands of threads that are mostly waiting, so a thread-per-request style stops hitting a thread ceiling. Everything else in the talk follows from that."
+ },
+ {
+  "n": 3,
+  "title": "A thread pool caps throughput, and Little's law says where",
+  "notes": "Little's law ties the thread limit to throughput. Lab 2 makes it concrete: 10,000 tasks that each block for 100 ms took 5041 ms on a 200-thread pool and 175 ms with one virtual thread per task. The pool number is just 10,000 times 0.1 s divided by 200 threads. The calculator on the site lets you plug in your own service's numbers."
+ },
+ {
+  "n": 4,
+  "title": "Mount, run, unmount on block, remount anywhere",
+  "notes": "A virtual thread is just a java.lang.Thread whose stack lives on the heap. The JDK runs it on a carrier, which is a normal platform thread from a small ForkJoinPool sized to your cores. The trick is step 3: when you block in a JDK API that supports it, the thread unmounts and the carrier runs someone else. The exception is pinning, and that's what changed across versions."
+ },
+ {
+  "n": 5,
+  "title": "The API is just Thread",
+  "notes": "There's no new thread type. The executor is the default choice, and close() waits for everything you submitted. Thread pools used to do two jobs: reuse expensive threads and cap concurrency. Virtual threads remove the first reason, so don't pool them. The second reason still matters, so put a Semaphore around the scarce resource."
+ },
+ {
+  "n": 6,
+  "title": "Pinning: the version that matters",
+  "notes": "This is the main reason the target is Java 25 and not 21."
+ },
+ {
+  "n": 7,
+  "title": "synchronized pinned on JDK 21 and stopped on 24+",
+  "notes": "Lab 4 runs with a single carrier so the effect is easy to see. JDK 21 took 812 ms, which is four sleeps in a row, because each one pins the carrier. JDK 25 and 27 took 209 and 211 ms because the sleeps overlap. Five runs on 21 all landed between 806 and 811 ms. Netflix hit this class of stall in production on 21; it's the main reason to target 25."
+ },
+ {
+  "n": 8,
+  "title": "What changed for virtual threads, release by release",
+  "notes": "Two LTS releases matter for us: 21 and 25. Everything that made 21 risky, pinning in synchronized, is fixed in 24 and therefore in 25. Structured concurrency is the one API to wait on: it changed shape in nearly every preview, and it becomes final in JDK 28 with the JDK 27 API."
+ },
+ {
+  "n": 9,
+  "title": "A batch of GET requests, five ways",
+  "notes": "Now the comparison most teams actually need."
+ },
+ {
+  "n": 10,
+  "title": "Any concurrency beats the loop; the rest is close",
+  "notes": "Each task makes two dependent GETs against a local server that waits 20 ms. The for loop took 12.5 seconds for just 400 calls. Every concurrent style handled 2,000 calls in well under a second, except the synchronized wrapper on 21, which pinned: 3919 ms versus 437 on 26. The case for virtual threads isn't raw speed. It's that the code stays a plain loop of blocking calls."
+ },
+ {
+  "n": 11,
+  "title": "Headers survive a thread hop only if you carry them",
+  "notes": "This is the part that bites in real services. Most code keeps the current request in a ThreadLocal: Spring's RequestContextHolder, MDC, the security context. The moment work moves to another thread, it's gone, and virtual threads are no exception. A new virtual thread starts with empty ThreadLocals. ScopedValue only flows into StructuredTaskScope forks, not into a plain executor. The pattern that works everywhere is explicit capture."
+ },
+ {
+  "n": 12,
+  "title": "Parallel streams don't use virtual threads; mapConcurrent does",
+  "notes": "A question I expect: can't we just use parallel streams? No. They run on the common ForkJoinPool, one worker per core, and they never use virtual threads. On this 2-core machine the parallel stream took 5 seconds for 200 calls of 50 ms. Worse, the calling thread also processes elements, so the context was there for exactly half the calls, the kind of bug that shows up only sometimes. On Java 25, Gatherers.mapConcurrent is the replacement: each element on its own virtual thread, a concurrency cap, results in order, about 55 ms. Carry the context as a captured variable, or wrap the function so it sets the ThreadLocal on the worker and restores it afterwards."
+ },
+ {
+  "n": 13,
+  "title": "Two failures the benchmark hit before Spring was involved",
+  "notes": "Both of these have field reports behind them, listed in the references. The common-pool failure also shows up in production with blocking Redis calls inside parallel streams. The HttpClient thread count was explained by the JDK networking team on their mailing list: the default executor is a cached thread pool."
+ },
+ {
+  "n": 14,
+  "title": "Our path: Java 17 + RestTemplate → Java 25 + RestClient",
+  "notes": "This section is a real Spring Boot app: a request comes in with four headers, the controller fans out GETs, and every response is checked. It ran on Java 17 with Boot 3.5, Java 25 with Boot 3.5, and Java 25 with Boot 4.1. Step 5 of the migration order is the property spring.threads.virtual.enabled=true."
+ },
+ {
+  "n": 15,
+  "title": "Three pieces carry the headers on 17 and 25 alike",
+  "notes": "Without the decorator, headers arrived on 0 of 100 calls, on the pool and on virtual threads, on both machines. With it, every call had all four. Calling code doesn't change between the two executor beans: CompletableFuture.runAsync(task, fanoutExecutor). The concurrency limit on the virtual-thread bean matters; that's two slides from now."
+ },
+ {
+  "n": 16,
+  "title": "The JDK upgrade alone changes nothing; the bean does",
+  "notes": "Read this top to bottom as a migration. Today, a pool shaped like Boot's default took 7.8 seconds; a 64-thread pool took 994 ms. Upgrading to 25 with the same pool: 995 ms, no change. Swapping the executor bean to virtual threads with a limit of 200: 311 ms. RestTemplate to RestClient is not a performance change. We migrate for the API and the deprecation."
+ },
+ {
+  "n": 17,
+  "title": "The trap: RestClient.create() picks a 5-connection pool",
+  "notes": "This is the biggest risk in the RestTemplate to RestClient migration. With HttpClient 5 on the classpath, RestClient silently switches to a pool of 5 connections per host. The same 2,000 calls took 12.5 seconds instead of 313 ms. A Spring Boot issue and a published write-up report the same thing. Always pass an explicitly configured request factory, and add idle eviction when you size the pool up."
+ },
+ {
+  "n": 18,
+  "title": "Unbounded fan-out caused a connection storm",
+  "notes": "This came out of running on my desktop, and the cloud machine never showed it. With no limit, every task asks for a new connection at once, and the server's accept queue overflowed. Moving only the server to JDK 26, which lifts Windows' 200 cap, made the same fan-out succeed up to 2,000 tasks. That confirms the cause, but the lesson holds in production: cap the fan-out at what the downstream can take."
+ },
+ {
+  "n": 19,
+  "title": "A migration order that keeps each step measurable",
+  "notes": "Change one thing at a time so each step can be measured on its own. Steps 1 and 2 pay off on Java 17 today. Step 3 is a pure JDK upgrade and should change nothing. Step 4 is where the speedup comes from. Steps 5 and 6 follow once the first four are stable."
+ },
+ {
+  "n": 20,
+  "title": "Takeaways",
+  "notes": "Six things to take away. If we only do two, it's carrying context explicitly and owning the request factory, because both bite on Java 17 today, before any virtual threads are involved."
+ },
+ {
+  "n": 21,
+  "title": "References 1/3: OpenJDK",
+  "notes": "Full links are on the site's Sources section. Each title on this slide is a clickable link in the deck."
+ },
+ {
+  "n": 22,
+  "title": "References 2/3: Spring and HTTP clients",
+  "notes": "Full links are on the site's Sources section. Each title on this slide is a clickable link in the deck."
+ },
+ {
+  "n": 23,
+  "title": "References 3/3: Field reports and background",
+  "notes": "Full links are on the site's Sources section. Each title on this slide is a clickable link in the deck."
+ },
+ {
+  "n": 24,
+  "title": "Questions",
+  "notes": "The site has everything from this talk: the 11 labs with captured output, the scheduler simulator, the benchmark code you can rerun on your own machine, and a teaching kit with exercises and a quiz."
+ }
+]

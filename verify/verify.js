@@ -8,7 +8,7 @@ const { chromium } = require('playwright');
 const path = require('path');
 
 const FILE = 'file://' + path.resolve(__dirname, '..', 'index.html');
-const MIN_TESTS = 38;
+const MIN_TESTS = 41;
 const VIEWS = [
   ['desktop', { viewport: { width: 1280, height: 900 } }],
   ['phone', { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true }],
@@ -36,14 +36,25 @@ const VIEWS = [
     if (errors.length) failures.push(`${name}: page errors: ${errors.join(' | ')}`);
     if (external.length) failures.push(`${name}: external requests: ${external.join(', ')}`);
     if (overflow > 1) failures.push(`${name}: horizontal overflow of ${overflow}px`);
+    // Slides tab: open it by link, step forward with the keyboard, and check layout there too
+    await page.goto(FILE + '#slides');
+    await page.waitForTimeout(300);
+    await page.keyboard.press('ArrowRight');
+    const sv = await page.evaluate(() => ({ count: document.getElementById('sv-count').textContent, courseHidden: document.getElementById('course').hidden,
+      overflow: document.documentElement.scrollWidth - window.innerWidth }));
+    console.log(`${name} slides tab: ${sv.count}, course hidden ${sv.courseHidden}, overflow ${sv.overflow}px`);
+    if (!/^2 \/ \d+$/.test(sv.count) || !sv.courseHidden) failures.push(`${name}: slides tab did not open or advance (${sv.count})`);
+    if (sv.overflow > 1) failures.push(`${name}: slides tab horizontal overflow of ${sv.overflow}px`);
     await ctx.close();
   }
   const noJs = await browser.newContext({ javaScriptEnabled: false });
   const p = await noJs.newPage();
   await p.goto(FILE);
   const answers = await p.locator('details.ans').count();
-  console.log(`no-script: ${answers} quiz answers readable`);
+  const slidesNoJs = await p.locator('#slide-list figure img').count();
+  console.log(`no-script: ${answers} quiz answers readable, ${slidesNoJs} slides listed`);
   if (answers < 8) failures.push(`no-script: only ${answers} quiz answers`);
+  if (slidesNoJs < 20) failures.push(`no-script: only ${slidesNoJs} slides visible`);
   await browser.close();
   if (failures.length) {
     console.error('\nFAILED\n' + failures.join('\n'));

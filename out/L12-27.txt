@@ -1,0 +1,8 @@
+parallelStream, ThreadLocal                      5035 ms   context seen 100/200
+mapConcurrent(200), ThreadLocal                    73 ms   context seen   0/200
+mapConcurrent(200), InheritableThreadLocal         58 ms   context seen 200/200
+mapConcurrent(200), ScopedValue                    69 ms   context seen   0/200
+mapConcurrent(200), captured variable              52 ms   context seen 200/200
+mapConcurrent(200), withContext(...) wrapper       53 ms   context seen 200/200
+mapConcurrent(20), captured variable              508 ms   context seen 200/200
+mapConcurrent keeps input order: true   cores=2
