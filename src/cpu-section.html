@@ -1,0 +1,109 @@
+<h2 id="cpu">13. CPU-bound work: summing BigDecimals seven ways</h2>
+<p>The GET benchmark shows virtual threads where they shine: thousands of tasks that mostly wait. This section is the counterweight. The job never waits: it sums ten million <code>BigDecimal</code>s, split into tasks. It runs seven ways, three JDKs on the Windows desktop and JDK 21 in the cloud, so you can see what each strategy does when the only thing that matters is keeping cores busy. <span class="tag m">MEASURED</span></p>
+
+<h3 id="cpu-setup">The workload</h3>
+<ul>
+<li><b>10,000,000 additions per run</b>, always <code>sum.add(x, MathContext(34))</code> (34 digits, the precision of IEEE <code>decimal128</code>). <code>BigDecimal</code> is immutable, so every addition allocates a new object. The work is pure CPU plus allocation. Nothing blocks.</li>
+<li><b>Three task shapes</b> over the same ten million numbers: 10,000 tasks of 1,000 numbers, 100,000 tiny tasks of 100, and 100 large tasks of 100,000. A task sums its slice. The caller then adds up the task results.</li>
+<li><b>Inputs are made up front</b> from a fixed seed, so generating random numbers isn't timed and every strategy sums the same values.</li>
+<li><b>Timing:</b> three warm-up runs per strategy, then the median of seven, with a <code>System.gc()</code> before each timed run. Every strategy must produce the same total, or the program stops (<code>checksum: {{CPU_SUM}}</code> on every run here).</li>
+<li><b>Each run builds a new executor</b> and closes it with try-with-resources. So pool strategies pay to start their threads every run, as a request-scoped executor would.</li>
+</ul>
+<p class="small">Machines: the Windows desktop (Intel Core i7-1260P: 4 performance cores with 2 threads each and 8 efficiency cores, 16 logical CPUs; Temurin 21.0.11, Temurin 25.0.5, Corretto 27.0.1) and a 2-vCPU Intel Xeon @ 2.10 GHz Linux container (OpenJDK 21.0.12). The cloud machine is a different instance from the one used elsewhere on this page.</p>
+
+<h3 id="cpu-strategies">The seven strategies, and what each one does underneath</h3>
+<p>All seven call the same <code>sumOne(xs)</code>, a plain loop over one task's slice. They differ only in which thread runs each task, how a task gets to that thread, and how the partial sums come back.</p>
+<pre><code>static BigDecimal sumOne(BigDecimal[] xs) {
+    BigDecimal s = BigDecimal.ZERO;
+    for (BigDecimal x : xs) s = s.add(x, MC);   // MC = new MathContext(34)
+    return s;
+}</code></pre>
+
+<div class="lab" id="cpu-s-loop"><h4>1 · Sequential for loop: the baseline</h4>
+<pre><code>BigDecimal total = BigDecimal.ZERO;
+for (BigDecimal[] xs : inputs) total = total.add(sumOne(xs), MC);</code></pre>
+<p>One thread and two nested loops, nothing else. Its time is the cost of the arithmetic on one core. On the desktop that was {{CPU:desktop:27:loop:10000}} for the 10,000-task shape on JDK 27. Every other row is "how much of this did we spread across cores, minus what spreading it cost". The small speed-up number in the tables is measured against this row from the same run.</p>
+<p>The loop also has a hidden advantage: one thread on an otherwise idle machine gets the processor's highest single-core boost clock. Once every core is busy, each core runs slower. That's one reason no strategy below gets close to 16× on 16 logical CPUs. <span class="tag i">INFERRED</span></p>
+</div>
+
+<div class="lab" id="cpu-s-stream"><h4>2 · Sequential stream: the same thing, written as a pipeline</h4>
+<pre><code>Arrays.stream(inputs).map(BigDecimalBench::sumOne).reduce(BigDecimal.ZERO, (a, b) -&gt; a.add(b, MC));</code></pre>
+<p>Without <code>.parallel()</code>, a stream runs on the calling thread, one element at a time, in order: the same work as the loop. The pipeline adds a <code>Spliterator</code>, a lambda call per element and a <code>reduce</code> step, but each element carries 100 to 100,000 <code>BigDecimal</code> additions, so the overhead is too small to see once the JIT has inlined it. It's here so the parallel-stream row can be read as "what <code>.parallel()</code> bought", not "what streams bought". Measured: the stream and the loop swapped places from cell to cell, with no consistent winner (see <a href="#cpu-findings">finding 7</a>).</p>
+</div>
+
+<div class="lab" id="cpu-s-fixed"><h4>3 · Platform pool, one thread per core</h4>
+<pre><code>try (var ex = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors())) {
+    List&lt;Future&lt;BigDecimal&gt;&gt; fs = new ArrayList&lt;&gt;();
+    for (BigDecimal[] xs : inputs) fs.add(ex.submit(() -&gt; sumOne(xs)));
+    BigDecimal total = BigDecimal.ZERO;
+    for (var f : fs) total = total.add(f.get(), MC);
+}</code></pre>
+<p>The textbook answer for CPU-bound work. <code>newFixedThreadPool(16)</code> is a <code>ThreadPoolExecutor</code> with 16 OS threads and one <code>LinkedBlockingQueue</code> in front of them. <code>submit()</code> wraps each task in a <code>FutureTask</code> and puts it on the queue. Each worker takes a task, runs it, and takes the next. The main thread then calls <code>get()</code> on every future in order, so the final additions are serial.</p>
+<p>When tasks are coarse, this is about as good as it gets: with 10,000 or 100 tasks on the desktop, it was the fastest strategy or within 5% of the fastest on every JDK. When tasks are tiny (100 additions, a few microseconds each), the shared queue becomes the hot spot. All 16 workers take from the same lock-protected queue while the main thread keeps adding to it, and the time each task waits to be handed out grows compared with the time it runs. <span class="tag i">INFERRED</span></p>
+</div>
+
+<div class="lab" id="cpu-s-fixed4"><h4>4 · Platform pool, four threads per core</h4>
+<pre><code>Executors.newFixedThreadPool(4 * Runtime.getRuntime().availableProcessors())   // 64 on the desktop</code></pre>
+<p>The same mechanism with four times the threads. "Cores × N" sizing comes from I/O-bound pools, where extra threads fill the time others spend waiting (Little's law, <a href="#why">section 1</a>). Here nothing waits, so the extra threads have no gaps to fill. The OS time-slices 64 runnable threads over 16 logical CPUs, and each switch costs a context switch and the cache contents the previous thread had built up. On the desktop it was slower than one thread per core in every one of the 9 cells. On the noisier 2-vCPU machine it won one cell, lost one and tied the third, so there the difference is within noise.</p>
+</div>
+
+<div class="lab" id="cpu-s-cached"><h4>5 · Platform thread per task (cached pool)</h4>
+<pre><code>Executors.newCachedThreadPool()</code></pre>
+<p>The "one thread per unit of work" model with OS threads. A cached pool hands each task straight to an idle worker through a <code>SynchronousQueue</code>. If no worker is waiting at that instant, it starts a new OS thread, and idle threads live for 60 seconds. With 100 large tasks that's at most 100 threads, which is nothing. With 100,000 tiny tasks the main thread submits far faster than workers come back for more, so the pool starts a stream of new threads, each with an OS call and a stack reservation (about 1 MB by default on 64-bit JDKs).</p>
+<p>That cost dominates at 100,000 tasks: {{CPU:desktop:27:cached:100000}} on JDK 27 against {{CPU:desktop:27:vt:100000}} for virtual threads, and on 2 vCPUs it was slower than doing everything on one thread ({{CPU:container:21:cached:100000}} vs {{CPU:container:21:loop:100000}}). This row is the problem virtual threads were built to solve.</p>
+</div>
+
+<div class="lab" id="cpu-s-vt"><h4>6 · Virtual thread per task</h4>
+<pre><code>Executors.newVirtualThreadPerTaskExecutor()</code></pre>
+<p>One virtual thread per task, scheduled onto a <code>ForkJoinPool</code> of carrier threads, one per logical CPU by default (<a href="#model">section 2</a>). Starting a virtual thread is a small heap allocation, not an OS call, so 100,000 of them are cheap. The scheduler is work-stealing: each carrier keeps its own deque, and an idle carrier takes work from a busy one, so there's no single shared queue for every task to pass through.</p>
+<p>What it can't do here is go faster than the cores. A virtual thread only leaves its carrier when it blocks. The JDK doesn't time-slice virtual threads, and a <code>BigDecimal</code> loop never blocks, so each task holds one of the 16 carriers until it's done. That's the same 16-way parallelism as strategy 3, with a different way of handing out tasks. Across all 12 cells, virtual threads were {{CPU_VT_VS_POOL}} compared with the pool sized to the cores. They pulled ahead with 100,000 tiny tasks on the desktop on JDK 25 and 27, which fits the queue explanation in strategy 3, but this benchmark doesn't isolate the cause. <span class="tag i">INFERRED</span></p>
+<p>Because nothing yields, CPU-heavy virtual threads also hold their carriers away from any I/O-bound virtual threads in the same JVM. Keep long CPU work off the default scheduler in a service that depends on it for request handling. <span class="tag i">INFERRED</span></p>
+</div>
+
+<div class="lab" id="cpu-s-pstream"><h4>7 · Parallel stream</h4>
+<pre><code>Arrays.stream(inputs).parallel().map(BigDecimalBench::sumOne).reduce(BigDecimal.ZERO, (a, b) -&gt; a.add(b, MC));</code></pre>
+<p>Runs on the shared <code>ForkJoinPool.commonPool()</code>, whose parallelism is one less than the CPU count, and the calling thread works too. Instead of submitting each task, the stream splits the array range in half, again and again, into a tree of <code>ForkJoinTask</code>s. Each fork goes on the forking worker's own deque, and idle workers steal the largest pieces first. Partial sums are combined in pairs as the tree folds back up, so no single thread adds 100,000 results at the end, and nothing creates a <code>Future</code> per element.</p>
+<p>That's why it was the fastest strategy for 100,000 tiny tasks on every machine and JDK. The cost is control. The common pool is shared by everything in the JVM that uses it (other parallel streams, and <code>CompletableFuture</code> stages run without an executor), and blocking on it can fail outright (<a href="#bench-findings">GET finding 6</a>). It's a good fit for a batch job or a self-contained computation. In a server, a dedicated pool gives you isolation. <span class="tag i">INFERRED</span></p>
+</div>
+
+<details><summary>Full benchmark source and driver</summary>
+<p class="small"><b>bench/BigDecimalBench.java</b> runs as a single file: <code>java BigDecimalBench.java [tasks] [numbersPerTask] [runs]</code>.</p><pre><code>{{SRC:BigDecimalBench.java}}</code></pre>
+<p class="small"><b>bench/run_bigdecimal.py</b> runs the three shapes on each JDK and writes <code>out/bigdec-&lt;machine&gt;-&lt;jdk&gt;.txt</code>: <code>python bench/run_bigdecimal.py --machine desktop --jdk 21=&lt;home&gt; --jdk 27=&lt;home&gt;</code> (about 80 s per JDK on the desktop).</p><pre><code>{{SRC:run_bigdecimal.py}}</code></pre>
+</details>
+
+<h3 id="cpu-results">Results</h3>
+<p><b>Windows desktop</b> (i7-1260P, 16 logical CPUs; JDK 21, 25 and 27 run back to back on November 8, 2026). <span class="tag m">MEASURED</span></p>
+{{CPU_TABLE:desktop}}
+<p><b>Cloud container</b> (2 vCPU, OpenJDK 21.0.12). <span class="tag m">MEASURED</span></p>
+{{CPU_TABLE:container}}
+<details><summary>An earlier desktop run (JDK 27, November 5): slower overall, same pattern</summary>
+{{CPU_TABLE:desktop:nov5}}
+</details>
+<details><summary>Raw output of every run</summary>
+<p class="small"><b>out/bigdec-desktop-21.txt</b></p><pre class="out"><code>{{OUT:bigdec-desktop-21}}</code></pre>
+<p class="small"><b>out/bigdec-desktop-25.txt</b></p><pre class="out"><code>{{OUT:bigdec-desktop-25}}</code></pre>
+<p class="small"><b>out/bigdec-desktop-27.txt</b></p><pre class="out"><code>{{OUT:bigdec-desktop-27}}</code></pre>
+<p class="small"><b>out/bigdec-desktop-27-nov5.txt</b></p><pre class="out"><code>{{OUT:bigdec-desktop-27-nov5}}</code></pre>
+<p class="small"><b>out/bigdec-container-21.txt</b></p><pre class="out"><code>{{OUT:bigdec-container-21}}</code></pre>
+</details>
+
+<h3 id="cpu-findings">What the numbers say</h3>
+<ol>
+<li><b>Spreading the work helps, but nowhere near 16×.</b> The best strategy beat the loop by {{CPU_BEST:desktop}} on the 16-thread desktop ({{CPU_BEST:desktop:nov5}} in the November 5 run). Only 4 of the 12 cores have a second hardware thread, the 8 efficiency cores are slower, all-core clocks are lower than the single-core boost, and every addition allocates, which loads the memory system and the garbage collector. <span class="tag m">MEASURED</span> <span class="tag i">INFERRED</span> (the causes)</li>
+<li><b>Two cores are two cores.</b> On the 2-vCPU machine the best strategy reached {{CPU_BEST:container}}, close to the ideal 2×. <span class="tag m">MEASURED</span></li>
+<li><b>Virtual threads don't speed up CPU work, and don't slow it down much either.</b> Against a pool sized to the cores, virtual threads were {{CPU_VT_VS_POOL}}. With 10,000 tasks on JDK 27 both took {{CPU:desktop:27:vt:10000}}. That matches Lab 3, at a larger scale and on more cores. <span class="tag m">MEASURED</span></li>
+<li><b>With tiny tasks, how work is handed out decides the result.</b> At 100,000 tasks of 100 numbers on JDK 27: parallel stream {{CPU:desktop:27:pstream:100000}}, virtual threads {{CPU:desktop:27:vt:100000}}, core-sized pool {{CPU:desktop:27:fixed:100000}}, thread per task {{CPU:desktop:27:cached:100000}}. On the desktop, on every JDK, the two work-stealing strategies (parallel stream, virtual threads) were at least as fast as one shared queue (the pool), and much faster than a new OS thread per task. On 2 vCPUs, with only two carriers to steal between, the pool beat virtual threads ({{CPU:container:21:fixed:100000}} vs {{CPU:container:21:vt:100000}}). <span class="tag m">MEASURED</span></li>
+<li><b>Platform thread per task is the outlier, and the reason virtual threads exist.</b> At 100,000 tasks it was at least 1.5× slower than virtual threads on every machine and JDK ({{CPU:desktop:21:cached:100000}} vs {{CPU:desktop:21:vt:100000}} on JDK 21), and on 2 vCPUs slower than the plain loop. Same programming model, very different cost. <span class="tag m">MEASURED</span></li>
+<li><b>More threads than cores only adds switching.</b> On the desktop, 64 threads was slower than 16 in all 9 cells, for example {{CPU:desktop:25:fixed4:100000}} vs {{CPU:desktop:25:fixed:100000}} at 100,000 tasks on JDK 25. Size CPU pools to the cores. <span class="tag m">MEASURED</span></li>
+<li><b>A sequential stream is a for loop.</b> Its time ranged {{CPU_STREAM_RANGE}} of the loop's in the same run, and it was faster in some cells and slower in others. Streams don't parallelize anything until you ask. <span class="tag m">MEASURED</span></li>
+<li><b>Don't compare JDK versions from these tables.</b> The same loop took {{CPU:desktop:21:loop:10000}}, {{CPU:desktop:25:loop:10000}} and {{CPU:desktop:27:loop:10000}} on JDK 21, 25 and 27 run minutes apart, and {{CPU:desktop:27:loop:10000:nov5}} on JDK 27 three days earlier. A laptop-class chip's clocks follow power and thermal state, which swamps any JDK difference here. Compare strategies within one run, as the speed-up numbers do. <span class="tag m">MEASURED</span> <span class="tag i">INFERRED</span> (the cause)</li>
+</ol>
+
+<div class="callout"><b>For CPU-bound work:</b>
+<ul>
+<li>Use a parallel stream for a self-contained computation, or a <code>ForkJoinPool</code> or fixed pool sized to <code>availableProcessors()</code> when you need isolation from the rest of the JVM.</li>
+<li>Make tasks coarse enough that handing them out is cheap compared with running them. 1,000 additions per task was plenty here; 100 was where dispatch started to show.</li>
+<li>Virtual threads are fine when code is already written thread-per-task, but don't expect a speed-up. In a service, keep long CPU work off the virtual-thread scheduler so it doesn't hold carriers away from request handling.</li>
+<li>Never give CPU-bound work more platform threads than cores, and never start one OS thread per small task.</li>
+</ul>
+<span class="tag i">INFERRED</span></div>

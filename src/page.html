@@ -114,7 +114,7 @@ footer{margin-top:60px;border-top:1px solid var(--line);padding:24px 0 60px;colo
     <p class="small">Tags: <span class="tag m">MEASURED</span> ran here, output shown · <span class="tag s">SOURCED</span> from a JEP or official doc (see <a href="#sources">Sources</a>) · <span class="tag i">INFERRED</span> reasoning, not tested. Machine for all measurements: {{MACHINE}}.</p>
     <div class="tracks">
       <div class="track"><b>Learning it?</b> Read top to bottom. About 90 minutes with the labs.
-        <ol><li><a href="#why">Why they exist</a></li><li><a href="#model">The mental model</a></li><li><a href="#sim">Play with the simulator</a></li><li><a href="#pinning">Pinning by JDK version</a></li><li><a href="#prod">Using them in production</a></li><li><a href="#bench">GET requests: loop vs CompletableFuture vs virtual threads</a></li><li><a href="#slides">The talk: slides with speaker notes</a></li><li><a href="#spring">Spring: executor beans, RestTemplate → RestClient, Java 17 → 25</a></li><li><a href="#field">What we hit, and what others have reported</a></li><li><a href="#quiz">Check yourself</a></li></ol></div>
+        <ol><li><a href="#why">Why they exist</a></li><li><a href="#model">The mental model</a></li><li><a href="#sim">Play with the simulator</a></li><li><a href="#pinning">Pinning by JDK version</a></li><li><a href="#prod">Using them in production</a></li><li><a href="#bench">GET requests: loop vs CompletableFuture vs virtual threads</a></li><li><a href="#cpu">CPU-bound work: BigDecimal summation seven ways</a></li><li><a href="#slides">The talk: slides with speaker notes</a></li><li><a href="#spring">Spring: executor beans, RestTemplate → RestClient, Java 17 → 25</a></li><li><a href="#field">What we hit, and what others have reported</a></li><li><a href="#quiz">Check yourself</a></li></ol></div>
       <div class="track"><b>Teaching it?</b> Jump to the <a href="#teach">teaching kit</a>: a three-session plan, the misconceptions students bring, graded exercises, a review checklist, and the guardrails to put in CI.
         <ol><li><a href="#plan">Session plan</a></li><li><a href="#myths">Misconceptions</a></li><li><a href="#exercises">Exercises</a></li><li><a href="#review">Review checklist</a></li><li><a href="#guardrails">Guardrails for AI-written code</a></li></ol></div>
     </div>
@@ -122,7 +122,7 @@ footer{margin-top:60px;border-top:1px solid var(--line);padding:24px 0 60px;colo
 </header>
 <nav class="top" aria-label="Sections"><div class="wrap" role="tablist" aria-label="Page views">
   <a class="tab" role="tab" id="tab-course" href="#top" aria-controls="course" aria-selected="true">Course</a><a class="tab" role="tab" id="tab-slides" href="#slides" aria-controls="slides" aria-selected="false">Slides</a><span class="sep sec">|</span>
-  <a class="sec" href="#why">Why</a><a class="sec" href="#model">Model</a><a class="sec" href="#api">API</a><a class="sec" href="#fit">Fit</a><a class="sec" href="#sim">Simulator</a><a class="sec" href="#pinning">Pinning</a><a class="sec" href="#limits">Limits</a><a class="sec" href="#context">Context</a><a class="sec" href="#mapconcurrent">Streams</a><a class="sec" href="#structured">Structured</a><a class="sec" href="#observe">Observe</a><a class="sec" href="#prod">Production</a><a class="sec" href="#bench">GET bench</a><a class="sec" href="#spring">Spring</a><a class="sec" href="#field">Field reports</a><span class="sep sec">|</span><a class="sec" href="#teach">Teach</a><a class="sec" href="#quiz">Quiz</a><a class="sec" href="#glossary">Glossary</a><a class="sec" href="#sources">Sources</a><a class="sec" href="#colophon">Tests</a>
+  <a class="sec" href="#why">Why</a><a class="sec" href="#model">Model</a><a class="sec" href="#api">API</a><a class="sec" href="#fit">Fit</a><a class="sec" href="#sim">Simulator</a><a class="sec" href="#pinning">Pinning</a><a class="sec" href="#limits">Limits</a><a class="sec" href="#context">Context</a><a class="sec" href="#mapconcurrent">Streams</a><a class="sec" href="#structured">Structured</a><a class="sec" href="#observe">Observe</a><a class="sec" href="#prod">Production</a><a class="sec" href="#bench">GET bench</a><a class="sec" href="#cpu">CPU bench</a><a class="sec" href="#spring">Spring</a><a class="sec" href="#field">Field reports</a><span class="sep sec">|</span><a class="sec" href="#teach">Teach</a><a class="sec" href="#quiz">Quiz</a><a class="sec" href="#glossary">Glossary</a><a class="sec" href="#sources">Sources</a><a class="sec" href="#colophon">Tests</a>
 </div></nav>
 
 <main class="wrap" id="course" role="tabpanel" aria-labelledby="tab-course">
@@ -182,7 +182,7 @@ footer{margin-top:60px;border-top:1px solid var(--line);padding:24px 0 60px;colo
 </div>
 <div class="grid2">
   <div class="card"><h4 style="color:var(--good)">Good fit</h4>Many concurrent tasks that mostly wait: HTTP handlers, calls to databases and other services, message consumers, fan-out to several backends, blocking SDKs you can't rewrite.</div>
-  <div class="card"><h4 style="color:var(--bad)">No gain</h4>CPU-bound work (use a pool sized to the cores, or parallel streams), a few long-lived threads, and code that's already non-blocking end to end. Reactive code gains little from switching. <span class="tag i">INFERRED</span></div>
+  <div class="card"><h4 style="color:var(--bad)">No gain</h4>CPU-bound work (use a pool sized to the cores, or parallel streams; measured in <a href="#cpu">section 13</a>), a few long-lived threads, and code that's already non-blocking end to end. Reactive code gains little from switching. <span class="tag i">INFERRED</span></div>
 </div>
 
 <h2 id="sim">5. Scheduler simulator</h2>
@@ -320,11 +320,13 @@ List&lt;Price&gt; prices = ids.stream()
 
 {{INCLUDE:bench-section.html}}
 
+{{INCLUDE:cpu-section.html}}
+
 {{INCLUDE:spring-section.html}}
 
 {{INCLUDE:field-section.html}}
 
-<h2 id="teach">15. Teaching kit</h2>
+<h2 id="teach">16. Teaching kit</h2>
 <p>Written for a lunch-and-learn series or a team onboarding, for developers who already know <code>ExecutorService</code>. Everything runs with nothing but a JDK: <code>java File.java</code> compiles and runs a single source file (JDK 11+), so there's no build tool to set up.</p>
 <h3 id="objectives">Learning objectives</h3>
 <p>By the end, a learner can:</p>
@@ -353,7 +355,7 @@ List&lt;Price&gt; prices = ids.stream()
 <h3 id="myths">Misconceptions students bring</h3>
 <div class="tablewrap"><table>
 <tr><th>Belief</th><th>What's true</th><th>Evidence</th></tr>
-<tr><td>"Virtual threads are faster."</td><td>They make waiting cheap. CPU-bound work is unchanged.</td><td>Lab 3</td></tr>
+<tr><td>"Virtual threads are faster."</td><td>They make waiting cheap. CPU-bound work is unchanged.</td><td>Lab 3, <a href="#cpu">section 13</a></td></tr>
 <tr><td>"They're like goroutines / green threads, so they're preemptive."</td><td>They aren't time-sliced. A virtual thread that never blocks keeps its carrier.</td><td>JEP 444; simulator CPU preset</td></tr>
 <tr><td>"Put them in a pool to be safe."</td><td>Pooling defeats the point. Limit the resource with a semaphore instead.</td><td>Lab 6</td></tr>
 <tr><td>"Never use synchronized with virtual threads."</td><td>True advice on JDK 21–23, outdated on 24+.</td><td>Lab 4 on 21 vs 25</td></tr>
@@ -402,7 +404,7 @@ List&lt;Price&gt; prices = ids.stream()
 </div>
 <p>The second guardrail is Lab 10 turned into a test: run the load test under a JFR recording and fail the build if any <code>jdk.VirtualThreadPinned</code> event appears. It catches pinning in libraries, which a static rule can't see.</p>
 
-<h2 id="quiz">16. Check yourself</h2>
+<h2 id="quiz">17. Check yourself</h2>
 <p class="small">Eight questions. Choose an answer for instant feedback, or open "Answer" if scripts are off.</p>
 <div id="quizbox">{{QUIZ_HTML}}</div>
 <div class="result" id="quizscore"></div>
@@ -592,6 +594,7 @@ function scoreQuiz(){
 
 /* ---------- GET benchmark chart ---------- */
 var BENCH = {{BENCH_JSON}};
+var CPU = {{CPU_JSON}};
 function benchRows(machine, n){
   var d = BENCH.machines[machine];
   return BENCH.methods.map(function(m){
@@ -737,6 +740,22 @@ function runTests(){
   t("bench: Little's law predicts the 64-thread pool on the desktop within 10%", function(){ var d = BENCH.data.desktop.filter(function(r){ return r.method === "cf-pool" && r.n === 1000; }); var loop = BENCH.data.desktop.filter(function(r){ return r.method === "loop" && r.jdk === 21; })[0]; var perCall = loop.medianMs / loop.calls; var pred = Math.ceil(1000/64) * 2 * perCall; return d.every(function(r){ return Math.abs(r.medianMs - pred) / pred < 0.1; }) || ("pred "+Math.round(pred)); });
   t("bench: chart renders a bar or failure label for every row", function(){ document.getElementById("b-machine").value = "container"; document.getElementById("b-n").value = "1000"; updateBench(); var svg = document.querySelector("#b-chart svg"); return !!svg && svg.textContent.indexOf("failed") >= 0 && svg.querySelectorAll("rect").length >= 15 || "bad chart"; });
   document.getElementById("b-machine").value = "desktop"; document.getElementById("b-n").value = "1000"; updateBench();
+  var cg = function(c, s){ return CPU.rows.filter(function(r){ return r.machine === c.m && r.jdk === c.j && r.tasks === c.t && r.run === c.run && r.strategy === s; })[0].medianMs; };
+  var cpuCells = function(pred){ var k = {}; CPU.rows.forEach(function(r){ var c = {m: r.machine, j: r.jdk, t: r.tasks, run: r.run}; if(!pred || pred(c)) k[c.m+"|"+c.j+"|"+c.t+"|"+c.run] = c; }); return Object.keys(k).map(function(x){ return k[x]; }); };
+  var cname = function(c){ return c.m+" "+c.j+" "+c.t+" "+c.run; };
+  var mainOnly = function(c){ return c.run === "main"; };
+  t("cpu: 7 strategies x 3 task shapes in each of the 5 result files", function(){ return CPU.rows.length === 105 && cpuCells().length === 15 || (CPU.rows.length + " rows"); });
+  t("cpu: every row came from runs with the same checksum", function(){ return /^9\.25868232913E\+12$/.test(CPU.checksum) || CPU.checksum; });
+  t("cpu: every parallel strategy beat the loop, except platform thread per task at 100,000 tasks on 2 vCPUs", function(){ var bad = []; cpuCells().forEach(function(c){ ["fixed","fixed4","cached","vt","pstream"].forEach(function(s){ var exempt = s === "cached" && c.t === 100000 && c.m === "container"; if(!exempt && !(cg(c, s) < cg(c, "loop"))) bad.push(cname(c)+" "+s); if(exempt && !(cg(c, s) > cg(c, "loop"))) bad.push("exemption no longer needed: "+cname(c)); }); }); return bad.length === 0 || bad.join(", "); });
+  t("cpu: on the desktop, 4 threads per core was slower than 1 per core in all 9 cells", function(){ var c = cpuCells(function(c){ return c.m === "desktop" && c.run === "main"; }); var bad = c.filter(function(x){ return !(cg(x, "fixed4") > cg(x, "fixed")); }); return c.length === 9 && bad.length === 0 || bad.map(cname).join(", "); });
+  t("cpu: with coarse tasks on the desktop, the core-sized pool was fastest or within 5% of fastest", function(){ var bad = cpuCells(function(c){ return c.m === "desktop" && c.run === "main" && c.t !== 100000; }).filter(function(c){ var best = Math.min.apply(null, ["loop","stream","fixed","fixed4","cached","vt","pstream"].map(function(s){ return cg(c, s); })); return cg(c, "fixed") > 1.05 * best; }); return bad.length === 0 || bad.map(cname).join(", "); });
+  t("cpu: platform thread per task was at least 1.5x slower than virtual threads at 100,000 tasks, every machine and JDK", function(){ var bad = cpuCells(function(c){ return c.t === 100000; }).filter(function(c){ return !(cg(c, "cached") >= 1.5 * cg(c, "vt")); }); return bad.length === 0 || bad.map(cname).join(", "); });
+  t("cpu: virtual threads stayed within 1.35x of the core-sized pool in every cell", function(){ var bad = cpuCells().filter(function(c){ return cg(c, "vt") > 1.35 * cg(c, "fixed"); }); return bad.length === 0 || bad.map(cname).join(", "); });
+  t("cpu: parallel stream was the fastest strategy at 100,000 tasks on every machine and JDK", function(){ var bad = cpuCells(function(c){ return c.t === 100000; }).filter(function(c){ return ["loop","stream","fixed","fixed4","cached","vt"].some(function(s){ return cg(c, s) < cg(c, "pstream"); }); }); return bad.length === 0 || bad.map(cname).join(", "); });
+  t("cpu: at 100,000 tasks on the desktop, both work-stealing strategies were at least as fast as the pool; on 2 vCPUs the pool beat virtual threads", function(){ var d = cpuCells(function(c){ return c.t === 100000 && c.m === "desktop"; }).filter(function(c){ return cg(c, "vt") > cg(c, "fixed") || cg(c, "pstream") > cg(c, "fixed"); }); var k = cpuCells(function(c){ return c.t === 100000 && c.m === "container"; }); return d.length === 0 && k.every(function(c){ return cg(c, "fixed") < cg(c, "vt"); }) || (d.map(cname).join(", ") || "container"); });
+  t("cpu: best speed-up under 5x on 16 threads, 1.8x-2.1x on 2 vCPUs", function(){ var bad = cpuCells().filter(function(c){ var b = Math.max.apply(null, ["stream","fixed","fixed4","cached","vt","pstream"].map(function(s){ return cg(c, "loop") / cg(c, s); })); return c.m === "desktop" ? !(b > 1 && b < 5) : !(b >= 1.8 && b <= 2.1); }); return bad.length === 0 || bad.map(cname).join(", "); });
+  t("cpu: the sequential stream stayed within 0.6x-1.7x of the loop and was faster in some cells, slower in others", function(){ var r = cpuCells(mainOnly).map(function(c){ return cg(c, "stream") / cg(c, "loop"); }); return r.every(function(x){ return x > 0.6 && x < 1.7; }) && r.some(function(x){ return x < 1; }) && r.some(function(x){ return x > 1; }) || r.map(function(x){ return x.toFixed(2); }).join(" "); });
+  t("cpu: JDK 27 desktop, 10,000 tasks: virtual threads and the core-sized pool tied (within 2%)", function(){ var c = {m: "desktop", j: 27, t: 10000, run: "main"}; return Math.abs(cg(c, "vt") - cg(c, "fixed")) <= 0.02 * cg(c, "fixed") || (cg(c, "vt") + " vs " + cg(c, "fixed")); });
   var SM = {}; SPRING.forEach(function(r){ SM[r.machine + "|" + r.config] = 1; });
   var sget = function(mc, sc, n, kind, fac){ return SPRING.filter(function(r){ return (r.machine + "|" + r.config) === mc && r.scenario === sc && r.n === n && r.kind === (kind || "main") && r.factory === (fac || "hc5-tuned"); })[0]; };
   var perCall = function(mc){ var l = sget(mc, "rt-loop", 200); return l.medianMs / l.calls; };
