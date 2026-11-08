@@ -231,6 +231,99 @@ def snum(m):
         sys.exit(f"bad spring placeholder {m.group(0)}")
     return ms(r["medianMs"])
 
+# ---------- CPU-bound BigDecimal benchmark ----------
+CPU_STRATS = [
+    ("loop", "sequential for-loop", "Sequential for loop"), ("stream", "sequential stream", "Sequential stream"),
+    ("fixed", "platform fixed pool (cores)", "Platform pool, 1 thread per core"),
+    ("fixed4", "platform fixed pool (cores*4)", "Platform pool, 4 threads per core"),
+    ("cached", "platform thread-per-task (cached)", "Platform thread per task (cached pool)"),
+    ("vt", "virtual thread-per-task", "Virtual thread per task"), ("pstream", "parallel stream", "Parallel stream"),
+]
+CPU_ID = {raw: sid for sid, raw, _ in CPU_STRATS}
+CPU_LABEL = {sid: label for sid, _, label in CPU_STRATS}
+CPU_SHAPES = [10000, 100000, 100]
+CPU_SHAPE_LABEL = {10000: "10,000 tasks<br><span class='small'>× 1,000 numbers</span>",
+                   100000: "100,000 tasks<br><span class='small'>× 100</span>", 100: "100 tasks<br><span class='small'>× 100,000</span>"}
+
+def parse_cpu():
+    rows, sums = [], set()
+    for p in sorted(OUT.glob("bigdec-*.txt")):
+        m = re.fullmatch(r"bigdec-(desktop|container)-(\d+)(?:-([a-z0-9]+))?\.txt", p.name)
+        if not m:
+            sys.exit(f"unexpected CPU result file {p.name}")
+        machine, jdk, run = m.group(1), int(m.group(2)), m.group(3) or "main"
+        head = None
+        for line in read_any(p).splitlines():
+            line = line.strip().lstrip("﻿")
+            h = re.match(r"JDK (\S+) \| cores=(\d+) \| tasks=(\d+) \| numbers/task=(\d+) \| runs=(\d+)", line)
+            if h:
+                head = {"jdkVersion": h.group(1), "cores": int(h.group(2)), "tasks": int(h.group(3)), "perTask": int(h.group(4))}
+                continue
+            c = re.match(r"checksum: (\S+)", line)
+            if c:
+                sums.add(c.group(1)); continue
+            r = re.match(r"(.+?)\s{2,}(\d+)\s+(\d+)\s+(\d+)\s+\d+$", line)
+            if r and r.group(1) in CPU_ID:
+                rows.append(dict(head, machine=machine, jdk=jdk, run=run, strategy=CPU_ID[r.group(1)],
+                                 medianMs=int(r.group(2)), minMs=int(r.group(3)), maxMs=int(r.group(4))))
+    if len(sums) != 1:
+        sys.exit(f"CPU benchmark checksums disagree: {sums}")
+    for key in {(r["machine"], r["jdk"], r["run"], r["tasks"]) for r in rows}:
+        if sorted(r["strategy"] for r in rows if (r["machine"], r["jdk"], r["run"], r["tasks"]) == key) != sorted(CPU_ID.values()):
+            sys.exit(f"CPU results incomplete for {key}")
+    return rows, sums.pop()
+
+CPU, CPU_SUM = parse_cpu()
+
+def cget(machine, jdk, sid, tasks, run="main"):
+    for r in CPU:
+        if r["machine"] == machine and r["jdk"] == jdk and r["strategy"] == sid and r["tasks"] == tasks and r["run"] == run:
+            return r
+    sys.exit(f"no CPU result {machine} {jdk} {sid} {tasks} {run}")
+
+def cjdks(machine, run="main"):
+    return sorted({r["jdk"] for r in CPU if r["machine"] == machine and r["run"] == run})
+
+def speedup(machine, jdk, sid, tasks, run="main"):
+    return cget(machine, jdk, "loop", tasks, run)["medianMs"] / cget(machine, jdk, sid, tasks, run)["medianMs"]
+
+def cpu_table(machine, run="main"):
+    jdks = cjdks(machine, run)
+    head = "<tr><th>Strategy</th>" + "".join(f"<th>JDK {j}<br>{CPU_SHAPE_LABEL[t]}</th>" for j in jdks for t in CPU_SHAPES) + "</tr>"
+    best = {(j, t): min(cget(machine, j, s, t, run)["medianMs"] for s in CPU_ID.values()) for j in jdks for t in CPU_SHAPES}
+    body = []
+    for sid, _, label in CPU_STRATS:
+        cells = []
+        for j in jdks:
+            for t in CPU_SHAPES:
+                r = cget(machine, j, sid, t, run)
+                v = f"{r['medianMs']:,} ms"
+                v = f"<b>{v}</b>" if r["medianMs"] == best[(j, t)] else v
+                cells.append(f"<td>{v}<br><span class='small'>{speedup(machine, j, sid, t, run):.1f}×</span></td>")
+        body.append(f"<tr><td>{label}</td>{''.join(cells)}</tr>")
+    return (f"<div class='tablewrap'><table>{head}{''.join(body)}</table></div>"
+            "<p class='small'>Median of 7 timed runs after 3 warm-ups. The small number is the speed-up over the sequential for loop in the same run. Bold is the fastest in its column.</p>")
+
+def cpu_best(spec):
+    machine, _, run = spec.partition(":")
+    run = run or "main"
+    vals = [max(speedup(machine, j, s, t, run) for s in CPU_ID.values() if s != "loop") for j in cjdks(machine, run) for t in CPU_SHAPES]
+    return f"{min(vals):.1f}–{max(vals):.1f}×"
+
+def cpu_vt_vs_pool():
+    cells = [(m, j, t) for m in ("desktop", "container") for j in cjdks(m) for t in CPU_SHAPES]
+    ratios = [cget(m, j, "vt", t)["medianMs"] / cget(m, j, "fixed", t)["medianMs"] for m, j, t in cells]
+    wins = sum(1 for x in ratios if x < 1)
+    return f"faster in {wins} of {len(cells)} cells and at most {max(ratios):.2f}× slower in the rest"
+
+def cnum(m):
+    kind, rest = m.group(1), m.group(2).split(":")
+    machine, jdk, sid, tasks = rest[0], int(rest[1]), rest[2], int(rest[3])
+    run = rest[4] if len(rest) > 4 else "main"
+    if kind == "CPU":
+        return f"{cget(machine, jdk, sid, tasks, run)['medianMs']:,} ms"
+    return f"{speedup(machine, jdk, sid, tasks, run):.1f}×"
+
 # ---------- Slides tab ----------
 import base64
 def slides_section():
@@ -290,6 +383,14 @@ page = re.sub(r"\{\{(BT?):([^}]+)\}\}", bnum, page)
 page = re.sub(r"\{\{PER_CALL:([a-z]+)\}\}", lambda m: per_call(m.group(1)), page)
 page = page.replace("{{BENCH_JSON}}", json.dumps({"methods": [{"id": i, "label": l} for i, l in METHODS],
                                                   "machines": MACHINES, "data": BENCH}).replace("</", "<\\/"))
+page = re.sub(r"\{\{CPU_TABLE:([a-z0-9:]+)\}\}", lambda m: cpu_table(*m.group(1).split(":")), page)
+page = re.sub(r"\{\{CPU_BEST:([a-z0-9:]+)\}\}", lambda m: cpu_best(m.group(1)), page)
+page = page.replace("{{CPU_VT_VS_POOL}}", cpu_vt_vs_pool())
+page = page.replace("{{CPU_SUM}}", CPU_SUM)
+_sr = [cget(r["machine"], r["jdk"], "stream", r["tasks"])["medianMs"] / r["medianMs"] for r in CPU if r["strategy"] == "loop" and r["run"] == "main"]
+page = page.replace("{{CPU_STREAM_RANGE}}", f"from {min(_sr):.2f}× to {max(_sr):.2f}×")
+page = re.sub(r"\{\{(CPU|CPUX):([a-z0-9:]+)\}\}", cnum, page)
+page = page.replace("{{CPU_JSON}}", json.dumps({"checksum": CPU_SUM, "rows": CPU}))
 page = re.sub(r"\{\{SRC:([^}]+)\}\}", lambda m: src(m.group(1)), page)
 page = re.sub(r"\{\{OUT:([^}]+)\}\}", lambda m: out(m.group(1)), page)
 page = re.sub(r"\{\{OUT_INLINE:([^}]+)\}\}", lambda m: "<code>" + out(m.group(1)).replace("\n", " · ") + "</code>", page)

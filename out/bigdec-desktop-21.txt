@@ -1,0 +1,38 @@
+JDK 21.0.11 | cores=16 | tasks=10000 | numbers/task=1000 | runs=7
+
+strategy                            median ms     min ms     max ms     sums/sec
+sequential for-loop                       232        228        298     43103448
+platform fixed pool (cores)               104        102        108     96153846
+platform fixed pool (cores*4)             114        108        118     87719298
+platform thread-per-task (cached)         184        130        256     54347826
+virtual thread-per-task                   105         90        116     95238095
+sequential stream                         261        249        318     38314176
+parallel stream                           111        105        122     90090090
+
+checksum: 9.25868232913E+12
+----
+JDK 21.0.11 | cores=16 | tasks=100000 | numbers/task=100 | runs=7
+
+strategy                            median ms     min ms     max ms     sums/sec
+sequential for-loop                       340        321        405     29411765
+platform fixed pool (cores)               142        126        183     70422535
+platform fixed pool (cores*4)             162        158        179     61728395
+platform thread-per-task (cached)         266        242        283     37593985
+virtual thread-per-task                   141        130        167     70921986
+sequential stream                         350        307        404     28571429
+parallel stream                           118        108        135     84745763
+
+checksum: 9.25868232913E+12
+----
+JDK 21.0.11 | cores=16 | tasks=100 | numbers/task=100000 | runs=7
+
+strategy                            median ms     min ms     max ms     sums/sec
+sequential for-loop                       414        383        578     24154589
+platform fixed pool (cores)               174        156        181     57471264
+platform fixed pool (cores*4)             207        197        224     48309179
+platform thread-per-task (cached)         215        197        244     46511628
+virtual thread-per-task                   193        188        223     51813472
+sequential stream                         398        390        573     25125628
+parallel stream                           168        156        181     59523810
+
+checksum: 9.25868232913E+12

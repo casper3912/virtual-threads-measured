@@ -114,7 +114,7 @@ footer{margin-top:60px;border-top:1px solid var(--line);padding:24px 0 60px;colo
     <p class="small">Tags: <span class="tag m">MEASURED</span> ran here, output shown · <span class="tag s">SOURCED</span> from a JEP or official doc (see <a href="#sources">Sources</a>) · <span class="tag i">INFERRED</span> reasoning, not tested. Machine for all measurements: a 2-vCPU Intel Xeon @ 2.30 GHz Linux container.</p>
     <div class="tracks">
       <div class="track"><b>Learning it?</b> Read top to bottom. About 90 minutes with the labs.
-        <ol><li><a href="#why">Why they exist</a></li><li><a href="#model">The mental model</a></li><li><a href="#sim">Play with the simulator</a></li><li><a href="#pinning">Pinning by JDK version</a></li><li><a href="#prod">Using them in production</a></li><li><a href="#bench">GET requests: loop vs CompletableFuture vs virtual threads</a></li><li><a href="#slides">The talk: slides with speaker notes</a></li><li><a href="#spring">Spring: executor beans, RestTemplate → RestClient, Java 17 → 25</a></li><li><a href="#field">What we hit, and what others have reported</a></li><li><a href="#quiz">Check yourself</a></li></ol></div>
+        <ol><li><a href="#why">Why they exist</a></li><li><a href="#model">The mental model</a></li><li><a href="#sim">Play with the simulator</a></li><li><a href="#pinning">Pinning by JDK version</a></li><li><a href="#prod">Using them in production</a></li><li><a href="#bench">GET requests: loop vs CompletableFuture vs virtual threads</a></li><li><a href="#cpu">CPU-bound work: BigDecimal summation seven ways</a></li><li><a href="#slides">The talk: slides with speaker notes</a></li><li><a href="#spring">Spring: executor beans, RestTemplate → RestClient, Java 17 → 25</a></li><li><a href="#field">What we hit, and what others have reported</a></li><li><a href="#quiz">Check yourself</a></li></ol></div>
       <div class="track"><b>Teaching it?</b> Jump to the <a href="#teach">teaching kit</a>: a three-session plan, the misconceptions students bring, graded exercises, a review checklist, and the guardrails to put in CI.
         <ol><li><a href="#plan">Session plan</a></li><li><a href="#myths">Misconceptions</a></li><li><a href="#exercises">Exercises</a></li><li><a href="#review">Review checklist</a></li><li><a href="#guardrails">Guardrails for AI-written code</a></li></ol></div>
     </div>
@@ -122,7 +122,7 @@ footer{margin-top:60px;border-top:1px solid var(--line);padding:24px 0 60px;colo
 </header>
 <nav class="top" aria-label="Sections"><div class="wrap" role="tablist" aria-label="Page views">
   <a class="tab" role="tab" id="tab-course" href="#top" aria-controls="course" aria-selected="true">Course</a><a class="tab" role="tab" id="tab-slides" href="#slides" aria-controls="slides" aria-selected="false">Slides</a><span class="sep sec">|</span>
-  <a class="sec" href="#why">Why</a><a class="sec" href="#model">Model</a><a class="sec" href="#api">API</a><a class="sec" href="#fit">Fit</a><a class="sec" href="#sim">Simulator</a><a class="sec" href="#pinning">Pinning</a><a class="sec" href="#limits">Limits</a><a class="sec" href="#context">Context</a><a class="sec" href="#mapconcurrent">Streams</a><a class="sec" href="#structured">Structured</a><a class="sec" href="#observe">Observe</a><a class="sec" href="#prod">Production</a><a class="sec" href="#bench">GET bench</a><a class="sec" href="#spring">Spring</a><a class="sec" href="#field">Field reports</a><span class="sep sec">|</span><a class="sec" href="#teach">Teach</a><a class="sec" href="#quiz">Quiz</a><a class="sec" href="#glossary">Glossary</a><a class="sec" href="#sources">Sources</a><a class="sec" href="#colophon">Tests</a>
+  <a class="sec" href="#why">Why</a><a class="sec" href="#model">Model</a><a class="sec" href="#api">API</a><a class="sec" href="#fit">Fit</a><a class="sec" href="#sim">Simulator</a><a class="sec" href="#pinning">Pinning</a><a class="sec" href="#limits">Limits</a><a class="sec" href="#context">Context</a><a class="sec" href="#mapconcurrent">Streams</a><a class="sec" href="#structured">Structured</a><a class="sec" href="#observe">Observe</a><a class="sec" href="#prod">Production</a><a class="sec" href="#bench">GET bench</a><a class="sec" href="#cpu">CPU bench</a><a class="sec" href="#spring">Spring</a><a class="sec" href="#field">Field reports</a><span class="sep sec">|</span><a class="sec" href="#teach">Teach</a><a class="sec" href="#quiz">Quiz</a><a class="sec" href="#glossary">Glossary</a><a class="sec" href="#sources">Sources</a><a class="sec" href="#colophon">Tests</a>
 </div></nav>
 
 <main class="wrap" id="course" role="tabpanel" aria-labelledby="tab-course">
@@ -244,7 +244,7 @@ round 3: platform pool  158 ms | virtual per task  163 ms</code></pre>
 </div>
 <div class="grid2">
   <div class="card"><h4 style="color:var(--good)">Good fit</h4>Many concurrent tasks that mostly wait: HTTP handlers, calls to databases and other services, message consumers, fan-out to several backends, blocking SDKs you can't rewrite.</div>
-  <div class="card"><h4 style="color:var(--bad)">No gain</h4>CPU-bound work (use a pool sized to the cores, or parallel streams), a few long-lived threads, and code that's already non-blocking end to end. Reactive code gains little from switching. <span class="tag i">INFERRED</span></div>
+  <div class="card"><h4 style="color:var(--bad)">No gain</h4>CPU-bound work (use a pool sized to the cores, or parallel streams; measured in <a href="#cpu">section 13</a>), a few long-lived threads, and code that's already non-blocking end to end. Reactive code gains little from switching. <span class="tag i">INFERRED</span></div>
 </div>
 
 <h2 id="sim">5. Scheduler simulator</h2>
@@ -924,7 +924,428 @@ try (var exec = Executors.newVirtualThreadPerTaskExecutor()) {
 If your logging or security code reads a <code>ThreadLocal</code> such as MDC, restore it at the start of each task: <code>MDC.setContextMap(captured)</code> and clear it in <code>finally</code>. Or move that context to a <code>ScopedValue</code> and use <code>StructuredTaskScope</code> once it's final. <span class="tag i">INFERRED</span></div>
 
 
-<h2 id="spring">13. At work: Spring executor beans, RestTemplate → RestClient, Java 17 → 25</h2>
+<h2 id="cpu">13. CPU-bound work: summing BigDecimals seven ways</h2>
+<p>The GET benchmark shows virtual threads where they shine: thousands of tasks that mostly wait. This section is the counterweight. The job never waits: it sums ten million <code>BigDecimal</code>s, split into tasks. It runs seven ways, three JDKs on the Windows desktop and JDK 21 in the cloud, so you can see what each strategy does when the only thing that matters is keeping cores busy. <span class="tag m">MEASURED</span></p>
+
+<h3 id="cpu-setup">The workload</h3>
+<ul>
+<li><b>10,000,000 additions per run</b>, always <code>sum.add(x, MathContext(34))</code> (34 digits, the precision of IEEE <code>decimal128</code>). <code>BigDecimal</code> is immutable, so every addition allocates a new object. The work is pure CPU plus allocation. Nothing blocks.</li>
+<li><b>Three task shapes</b> over the same ten million numbers: 10,000 tasks of 1,000 numbers, 100,000 tiny tasks of 100, and 100 large tasks of 100,000. A task sums its slice. The caller then adds up the task results.</li>
+<li><b>Inputs are made up front</b> from a fixed seed, so generating random numbers isn't timed and every strategy sums the same values.</li>
+<li><b>Timing:</b> three warm-up runs per strategy, then the median of seven, with a <code>System.gc()</code> before each timed run. Every strategy must produce the same total, or the program stops (<code>checksum: 9.25868232913E+12</code> on every run here).</li>
+<li><b>Each run builds a new executor</b> and closes it with try-with-resources. So pool strategies pay to start their threads every run, as a request-scoped executor would.</li>
+</ul>
+<p class="small">Machines: the Windows desktop (Intel Core i7-1260P: 4 performance cores with 2 threads each and 8 efficiency cores, 16 logical CPUs; Temurin 21.0.11, Temurin 25.0.5, Corretto 27.0.1) and a 2-vCPU Intel Xeon @ 2.10 GHz Linux container (OpenJDK 21.0.12). The cloud machine is a different instance from the one used elsewhere on this page.</p>
+
+<h3 id="cpu-strategies">The seven strategies, and what each one does underneath</h3>
+<p>All seven call the same <code>sumOne(xs)</code>, a plain loop over one task's slice. They differ only in which thread runs each task, how a task gets to that thread, and how the partial sums come back.</p>
+<pre><code>static BigDecimal sumOne(BigDecimal[] xs) {
+    BigDecimal s = BigDecimal.ZERO;
+    for (BigDecimal x : xs) s = s.add(x, MC);   // MC = new MathContext(34)
+    return s;
+}</code></pre>
+
+<div class="lab" id="cpu-s-loop"><h4>1 · Sequential for loop: the baseline</h4>
+<pre><code>BigDecimal total = BigDecimal.ZERO;
+for (BigDecimal[] xs : inputs) total = total.add(sumOne(xs), MC);</code></pre>
+<p>One thread and two nested loops, nothing else. Its time is the cost of the arithmetic on one core. On the desktop that was 458 ms for the 10,000-task shape on JDK 27. Every other row is "how much of this did we spread across cores, minus what spreading it cost". The small speed-up number in the tables is measured against this row from the same run.</p>
+<p>The loop also has a hidden advantage: one thread on an otherwise idle machine gets the processor's highest single-core boost clock. Once every core is busy, each core runs slower. That's one reason no strategy below gets close to 16× on 16 logical CPUs. <span class="tag i">INFERRED</span></p>
+</div>
+
+<div class="lab" id="cpu-s-stream"><h4>2 · Sequential stream: the same thing, written as a pipeline</h4>
+<pre><code>Arrays.stream(inputs).map(BigDecimalBench::sumOne).reduce(BigDecimal.ZERO, (a, b) -&gt; a.add(b, MC));</code></pre>
+<p>Without <code>.parallel()</code>, a stream runs on the calling thread, one element at a time, in order: the same work as the loop. The pipeline adds a <code>Spliterator</code>, a lambda call per element and a <code>reduce</code> step, but each element carries 100 to 100,000 <code>BigDecimal</code> additions, so the overhead is too small to see once the JIT has inlined it. It's here so the parallel-stream row can be read as "what <code>.parallel()</code> bought", not "what streams bought". Measured: the stream and the loop swapped places from cell to cell, with no consistent winner (see <a href="#cpu-findings">finding 7</a>).</p>
+</div>
+
+<div class="lab" id="cpu-s-fixed"><h4>3 · Platform pool, one thread per core</h4>
+<pre><code>try (var ex = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors())) {
+    List&lt;Future&lt;BigDecimal&gt;&gt; fs = new ArrayList&lt;&gt;();
+    for (BigDecimal[] xs : inputs) fs.add(ex.submit(() -&gt; sumOne(xs)));
+    BigDecimal total = BigDecimal.ZERO;
+    for (var f : fs) total = total.add(f.get(), MC);
+}</code></pre>
+<p>The textbook answer for CPU-bound work. <code>newFixedThreadPool(16)</code> is a <code>ThreadPoolExecutor</code> with 16 OS threads and one <code>LinkedBlockingQueue</code> in front of them. <code>submit()</code> wraps each task in a <code>FutureTask</code> and puts it on the queue. Each worker takes a task, runs it, and takes the next. The main thread then calls <code>get()</code> on every future in order, so the final additions are serial.</p>
+<p>When tasks are coarse, this is about as good as it gets: with 10,000 or 100 tasks on the desktop, it was the fastest strategy or within 5% of the fastest on every JDK. When tasks are tiny (100 additions, a few microseconds each), the shared queue becomes the hot spot. All 16 workers take from the same lock-protected queue while the main thread keeps adding to it, and the time each task waits to be handed out grows compared with the time it runs. <span class="tag i">INFERRED</span></p>
+</div>
+
+<div class="lab" id="cpu-s-fixed4"><h4>4 · Platform pool, four threads per core</h4>
+<pre><code>Executors.newFixedThreadPool(4 * Runtime.getRuntime().availableProcessors())   // 64 on the desktop</code></pre>
+<p>The same mechanism with four times the threads. "Cores × N" sizing comes from I/O-bound pools, where extra threads fill the time others spend waiting (Little's law, <a href="#why">section 1</a>). Here nothing waits, so the extra threads have no gaps to fill. The OS time-slices 64 runnable threads over 16 logical CPUs, and each switch costs a context switch and the cache contents the previous thread had built up. On the desktop it was slower than one thread per core in every one of the 9 cells. On the noisier 2-vCPU machine it won one cell, lost one and tied the third, so there the difference is within noise.</p>
+</div>
+
+<div class="lab" id="cpu-s-cached"><h4>5 · Platform thread per task (cached pool)</h4>
+<pre><code>Executors.newCachedThreadPool()</code></pre>
+<p>The "one thread per unit of work" model with OS threads. A cached pool hands each task straight to an idle worker through a <code>SynchronousQueue</code>. If no worker is waiting at that instant, it starts a new OS thread, and idle threads live for 60 seconds. With 100 large tasks that's at most 100 threads, which is nothing. With 100,000 tiny tasks the main thread submits far faster than workers come back for more, so the pool starts a stream of new threads, each with an OS call and a stack reservation (about 1 MB by default on 64-bit JDKs).</p>
+<p>That cost dominates at 100,000 tasks: 438 ms on JDK 27 against 184 ms for virtual threads, and on 2 vCPUs it was slower than doing everything on one thread (829 ms vs 553 ms). This row is the problem virtual threads were built to solve.</p>
+</div>
+
+<div class="lab" id="cpu-s-vt"><h4>6 · Virtual thread per task</h4>
+<pre><code>Executors.newVirtualThreadPerTaskExecutor()</code></pre>
+<p>One virtual thread per task, scheduled onto a <code>ForkJoinPool</code> of carrier threads, one per logical CPU by default (<a href="#model">section 2</a>). Starting a virtual thread is a small heap allocation, not an OS call, so 100,000 of them are cheap. The scheduler is work-stealing: each carrier keeps its own deque, and an idle carrier takes work from a busy one, so there's no single shared queue for every task to pass through.</p>
+<p>What it can't do here is go faster than the cores. A virtual thread only leaves its carrier when it blocks. The JDK doesn't time-slice virtual threads, and a <code>BigDecimal</code> loop never blocks, so each task holds one of the 16 carriers until it's done. That's the same 16-way parallelism as strategy 3, with a different way of handing out tasks. Across all 12 cells, virtual threads were faster in 5 of 12 cells and at most 1.32× slower in the rest compared with the pool sized to the cores. They pulled ahead with 100,000 tiny tasks on the desktop on JDK 25 and 27, which fits the queue explanation in strategy 3, but this benchmark doesn't isolate the cause. <span class="tag i">INFERRED</span></p>
+<p>Because nothing yields, CPU-heavy virtual threads also hold their carriers away from any I/O-bound virtual threads in the same JVM. Keep long CPU work off the default scheduler in a service that depends on it for request handling. <span class="tag i">INFERRED</span></p>
+</div>
+
+<div class="lab" id="cpu-s-pstream"><h4>7 · Parallel stream</h4>
+<pre><code>Arrays.stream(inputs).parallel().map(BigDecimalBench::sumOne).reduce(BigDecimal.ZERO, (a, b) -&gt; a.add(b, MC));</code></pre>
+<p>Runs on the shared <code>ForkJoinPool.commonPool()</code>, whose parallelism is one less than the CPU count, and the calling thread works too. Instead of submitting each task, the stream splits the array range in half, again and again, into a tree of <code>ForkJoinTask</code>s. Each fork goes on the forking worker's own deque, and idle workers steal the largest pieces first. Partial sums are combined in pairs as the tree folds back up, so no single thread adds 100,000 results at the end, and nothing creates a <code>Future</code> per element.</p>
+<p>That's why it was the fastest strategy for 100,000 tiny tasks on every machine and JDK. The cost is control. The common pool is shared by everything in the JVM that uses it (other parallel streams, and <code>CompletableFuture</code> stages run without an executor), and blocking on it can fail outright (<a href="#bench-findings">GET finding 6</a>). It's a good fit for a batch job or a self-contained computation. In a server, a dedicated pool gives you isolation. <span class="tag i">INFERRED</span></p>
+</div>
+
+<details><summary>Full benchmark source and driver</summary>
+<p class="small"><b>bench/BigDecimalBench.java</b> runs as a single file: <code>java BigDecimalBench.java [tasks] [numbersPerTask] [runs]</code>.</p><pre><code>import java.math.BigDecimal;
+import java.math.MathContext;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.function.Supplier;
+
+/**
+ * BigDecimal summation: platform threads vs virtual threads vs sequential.
+ * Usage: java BigDecimalBench.java [tasks] [numbersPerTask] [runs]
+ */
+public class BigDecimalBench {
+    static final MathContext MC = new MathContext(34);
+
+    public static void main(String[] args) throws Exception {
+        int tasks = args.length &gt; 0 ? Integer.parseInt(args[0]) : 10_000;
+        int perTask = args.length &gt; 1 ? Integer.parseInt(args[1]) : 1_000;
+        int runs = args.length &gt; 2 ? Integer.parseInt(args[2]) : 7;
+        int cores = Runtime.getRuntime().availableProcessors();
+
+        BigDecimal[][] inputs = new BigDecimal[tasks][perTask];
+        Random r = new Random(42);
+        for (int t = 0; t &lt; tasks; t++)
+            for (int i = 0; i &lt; perTask; i++)
+                inputs[t][i] = BigDecimal.valueOf(r.nextLong(1_000_000_000L), r.nextInt(2, 8));
+
+        System.out.printf(&quot;JDK %s | cores=%d | tasks=%d | numbers/task=%d | runs=%d%n%n&quot;,
+                System.getProperty(&quot;java.version&quot;), cores, tasks, perTask, runs);
+        System.out.printf(&quot;%-34s %10s %10s %10s %12s%n&quot;, &quot;strategy&quot;, &quot;median ms&quot;, &quot;min ms&quot;, &quot;max ms&quot;, &quot;sums/sec&quot;);
+
+        Map&lt;String, Supplier&lt;BigDecimal&gt;&gt; strategies = new LinkedHashMap&lt;&gt;();
+        strategies.put(&quot;sequential for-loop&quot;, () -&gt; sequential(inputs));
+        strategies.put(&quot;platform fixed pool (cores)&quot;, () -&gt; withExecutor(inputs, Executors.newFixedThreadPool(cores)));
+        strategies.put(&quot;platform fixed pool (cores*4)&quot;, () -&gt; withExecutor(inputs, Executors.newFixedThreadPool(cores * 4)));
+        strategies.put(&quot;platform thread-per-task (cached)&quot;, () -&gt; withExecutor(inputs, Executors.newCachedThreadPool()));
+        strategies.put(&quot;virtual thread-per-task&quot;, () -&gt; withExecutor(inputs, Executors.newVirtualThreadPerTaskExecutor()));
+        strategies.put(&quot;sequential stream&quot;, () -&gt; sequentialStream(inputs));
+        strategies.put(&quot;parallel stream&quot;, () -&gt; parallelStream(inputs));
+
+        BigDecimal expected = null;
+        for (var e : strategies.entrySet()) {
+            for (int i = 0; i &lt; 3; i++) e.getValue().get();
+            long[] times = new long[runs];
+            BigDecimal result = null;
+            for (int i = 0; i &lt; runs; i++) {
+                System.gc();
+                long t0 = System.nanoTime();
+                result = e.getValue().get();
+                times[i] = (System.nanoTime() - t0) / 1_000_000;
+            }
+            if (expected == null) expected = result;
+            else if (expected.compareTo(result) != 0) throw new IllegalStateException(&quot;Mismatch in &quot; + e.getKey());
+            Arrays.sort(times);
+            long median = times[runs / 2];
+            double sumsPerSec = (double) tasks * perTask / (Math.max(median, 1) / 1000.0);
+            System.out.printf(&quot;%-34s %10d %10d %10d %12.0f%n&quot;, e.getKey(), median, times[0], times[runs - 1], sumsPerSec);
+        }
+        System.out.println(&quot;\nchecksum: &quot; + expected.round(new MathContext(12)));
+    }
+
+    static BigDecimal sumOne(BigDecimal[] xs) {
+        BigDecimal s = BigDecimal.ZERO;
+        for (BigDecimal x : xs) s = s.add(x, MC);
+        return s;
+    }
+
+    static BigDecimal sequential(BigDecimal[][] inputs) {
+        BigDecimal total = BigDecimal.ZERO;
+        for (BigDecimal[] xs : inputs) total = total.add(sumOne(xs), MC);
+        return total;
+    }
+
+    static BigDecimal withExecutor(BigDecimal[][] inputs, ExecutorService ex) {
+        try (ex) {
+            List&lt;Future&lt;BigDecimal&gt;&gt; fs = new ArrayList&lt;&gt;(inputs.length);
+            for (BigDecimal[] xs : inputs) fs.add(ex.submit(() -&gt; sumOne(xs)));
+            BigDecimal total = BigDecimal.ZERO;
+            for (Future&lt;BigDecimal&gt; f : fs) total = total.add(f.get(), MC);
+            return total;
+        } catch (Exception e) { throw new RuntimeException(e); }
+    }
+
+    static BigDecimal sequentialStream(BigDecimal[][] inputs) {
+        return Arrays.stream(inputs).map(BigDecimalBench::sumOne).reduce(BigDecimal.ZERO, (a, b) -&gt; a.add(b, MC));
+    }
+
+    static BigDecimal parallelStream(BigDecimal[][] inputs) {
+        return Arrays.stream(inputs).parallel().map(BigDecimalBench::sumOne).reduce(BigDecimal.ZERO, (a, b) -&gt; a.add(b, MC));
+    }
+}</code></pre>
+<p class="small"><b>bench/run_bigdecimal.py</b> runs the three shapes on each JDK and writes <code>out/bigdec-&lt;machine&gt;-&lt;jdk&gt;.txt</code>: <code>python bench/run_bigdecimal.py --machine desktop --jdk 21=&lt;home&gt; --jdk 27=&lt;home&gt;</code> (about 80 s per JDK on the desktop).</p><pre><code>&quot;&quot;&quot;Run the CPU-bound BigDecimal summation benchmark on one or more JDKs.
+
+    python bench/run_bigdecimal.py --machine desktop --jdk 21=&lt;jdk21 home&gt; --jdk 27=&lt;jdk27 home&gt;
+
+Writes out/bigdec-&lt;machine&gt;-&lt;jdk&gt;.txt, one file per JDK, holding the three task shapes
+(10,000 x 1,000, 100,000 x 100 and 100 x 100,000 numbers). Each JDK takes about 80 s
+on a 16-thread desktop; build.py renders the tables from these files.
+&quot;&quot;&quot;
+import argparse, os, pathlib, subprocess, sys
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+SHAPES = [(10_000, 1_000), (100_000, 100), (100, 100_000)]
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument(&quot;--machine&quot;, required=True, choices=[&quot;desktop&quot;, &quot;container&quot;])
+    ap.add_argument(&quot;--jdk&quot;, action=&quot;append&quot;, required=True, help=&quot;LABEL=JAVA_HOME&quot;)
+    ap.add_argument(&quot;--runs&quot;, type=int, default=7)
+    a = ap.parse_args()
+    env = dict(os.environ)
+    env.pop(&quot;JAVA_TOOL_OPTIONS&quot;, None)  # its &quot;Picked up ...&quot; banner would land in the output
+    for spec in a.jdk:
+        label, home = spec.split(&quot;=&quot;, 1)
+        java = pathlib.Path(home) / &quot;bin&quot; / (&quot;java.exe&quot; if os.name == &quot;nt&quot; else &quot;java&quot;)
+        parts = []
+        for tasks, per in SHAPES:
+            cmd = [str(java), &quot;-Xmx4g&quot;, str(ROOT / &quot;bench&quot; / &quot;BigDecimalBench.java&quot;), str(tasks), str(per), str(a.runs)]
+            print(&quot;running&quot;, &quot; &quot;.join(cmd), flush=True)
+            r = subprocess.run(cmd, capture_output=True, text=True, env=env)
+            if r.returncode != 0:
+                sys.exit(f&quot;JDK {label} {tasks}x{per} failed:\n{r.stdout}\n{r.stderr}&quot;)
+            parts.append(r.stdout.strip())
+        dest = ROOT / &quot;out&quot; / f&quot;bigdec-{a.machine}-{label}.txt&quot;
+        dest.write_text(&quot;\n----\n&quot;.join(parts) + &quot;\n&quot;, encoding=&quot;utf-8&quot;, newline=&quot;\n&quot;)
+        print(&quot;wrote&quot;, dest, flush=True)
+
+if __name__ == &quot;__main__&quot;:
+    main()</code></pre>
+</details>
+
+<h3 id="cpu-results">Results</h3>
+<p><b>Windows desktop</b> (i7-1260P, 16 logical CPUs; JDK 21, 25 and 27 run back to back on November 8, 2026). <span class="tag m">MEASURED</span></p>
+<div class='tablewrap'><table><tr><th>Strategy</th><th>JDK 21<br>10,000 tasks<br><span class='small'>× 1,000 numbers</span></th><th>JDK 21<br>100,000 tasks<br><span class='small'>× 100</span></th><th>JDK 21<br>100 tasks<br><span class='small'>× 100,000</span></th><th>JDK 25<br>10,000 tasks<br><span class='small'>× 1,000 numbers</span></th><th>JDK 25<br>100,000 tasks<br><span class='small'>× 100</span></th><th>JDK 25<br>100 tasks<br><span class='small'>× 100,000</span></th><th>JDK 27<br>10,000 tasks<br><span class='small'>× 1,000 numbers</span></th><th>JDK 27<br>100,000 tasks<br><span class='small'>× 100</span></th><th>JDK 27<br>100 tasks<br><span class='small'>× 100,000</span></th></tr><tr><td>Sequential for loop</td><td>232 ms<br><span class='small'>1.0×</span></td><td>340 ms<br><span class='small'>1.0×</span></td><td>414 ms<br><span class='small'>1.0×</span></td><td>312 ms<br><span class='small'>1.0×</span></td><td>329 ms<br><span class='small'>1.0×</span></td><td>430 ms<br><span class='small'>1.0×</span></td><td>458 ms<br><span class='small'>1.0×</span></td><td>457 ms<br><span class='small'>1.0×</span></td><td>463 ms<br><span class='small'>1.0×</span></td></tr><tr><td>Sequential stream</td><td>261 ms<br><span class='small'>0.9×</span></td><td>350 ms<br><span class='small'>1.0×</span></td><td>398 ms<br><span class='small'>1.0×</span></td><td>323 ms<br><span class='small'>1.0×</span></td><td>366 ms<br><span class='small'>0.9×</span></td><td>397 ms<br><span class='small'>1.1×</span></td><td>480 ms<br><span class='small'>1.0×</span></td><td>732 ms<br><span class='small'>0.6×</span></td><td>370 ms<br><span class='small'>1.3×</span></td></tr><tr><td>Platform pool, 1 thread per core</td><td><b>104 ms</b><br><span class='small'>2.2×</span></td><td>142 ms<br><span class='small'>2.4×</span></td><td>174 ms<br><span class='small'>2.4×</span></td><td><b>100 ms</b><br><span class='small'>3.1×</span></td><td>159 ms<br><span class='small'>2.1×</span></td><td><b>181 ms</b><br><span class='small'>2.4×</span></td><td>160 ms<br><span class='small'>2.9×</span></td><td>250 ms<br><span class='small'>1.8×</span></td><td><b>135 ms</b><br><span class='small'>3.4×</span></td></tr><tr><td>Platform pool, 4 threads per core</td><td>114 ms<br><span class='small'>2.0×</span></td><td>162 ms<br><span class='small'>2.1×</span></td><td>207 ms<br><span class='small'>2.0×</span></td><td>118 ms<br><span class='small'>2.6×</span></td><td>194 ms<br><span class='small'>1.7×</span></td><td>209 ms<br><span class='small'>2.1×</span></td><td>164 ms<br><span class='small'>2.8×</span></td><td>267 ms<br><span class='small'>1.7×</span></td><td>170 ms<br><span class='small'>2.7×</span></td></tr><tr><td>Platform thread per task (cached pool)</td><td>184 ms<br><span class='small'>1.3×</span></td><td>266 ms<br><span class='small'>1.3×</span></td><td>215 ms<br><span class='small'>1.9×</span></td><td>176 ms<br><span class='small'>1.8×</span></td><td>274 ms<br><span class='small'>1.2×</span></td><td>200 ms<br><span class='small'>2.1×</span></td><td>203 ms<br><span class='small'>2.3×</span></td><td>438 ms<br><span class='small'>1.0×</span></td><td>186 ms<br><span class='small'>2.5×</span></td></tr><tr><td>Virtual thread per task</td><td>105 ms<br><span class='small'>2.2×</span></td><td>141 ms<br><span class='small'>2.4×</span></td><td>193 ms<br><span class='small'>2.1×</span></td><td>120 ms<br><span class='small'>2.6×</span></td><td>125 ms<br><span class='small'>2.6×</span></td><td>200 ms<br><span class='small'>2.1×</span></td><td>160 ms<br><span class='small'>2.9×</span></td><td>184 ms<br><span class='small'>2.5×</span></td><td>178 ms<br><span class='small'>2.6×</span></td></tr><tr><td>Parallel stream</td><td>111 ms<br><span class='small'>2.1×</span></td><td><b>118 ms</b><br><span class='small'>2.9×</span></td><td><b>168 ms</b><br><span class='small'>2.5×</span></td><td>102 ms<br><span class='small'>3.1×</span></td><td><b>103 ms</b><br><span class='small'>3.2×</span></td><td>193 ms<br><span class='small'>2.2×</span></td><td><b>157 ms</b><br><span class='small'>2.9×</span></td><td><b>132 ms</b><br><span class='small'>3.5×</span></td><td>156 ms<br><span class='small'>3.0×</span></td></tr></table></div><p class='small'>Median of 7 timed runs after 3 warm-ups. The small number is the speed-up over the sequential for loop in the same run. Bold is the fastest in its column.</p>
+<p><b>Cloud container</b> (2 vCPU, OpenJDK 21.0.12). <span class="tag m">MEASURED</span></p>
+<div class='tablewrap'><table><tr><th>Strategy</th><th>JDK 21<br>10,000 tasks<br><span class='small'>× 1,000 numbers</span></th><th>JDK 21<br>100,000 tasks<br><span class='small'>× 100</span></th><th>JDK 21<br>100 tasks<br><span class='small'>× 100,000</span></th></tr><tr><td>Sequential for loop</td><td>329 ms<br><span class='small'>1.0×</span></td><td>553 ms<br><span class='small'>1.0×</span></td><td>498 ms<br><span class='small'>1.0×</span></td></tr><tr><td>Sequential stream</td><td>351 ms<br><span class='small'>0.9×</span></td><td>527 ms<br><span class='small'>1.0×</span></td><td>492 ms<br><span class='small'>1.0×</span></td></tr><tr><td>Platform pool, 1 thread per core</td><td>219 ms<br><span class='small'>1.5×</span></td><td>414 ms<br><span class='small'>1.3×</span></td><td>270 ms<br><span class='small'>1.8×</span></td></tr><tr><td>Platform pool, 4 threads per core</td><td>172 ms<br><span class='small'>1.9×</span></td><td>456 ms<br><span class='small'>1.2×</span></td><td>271 ms<br><span class='small'>1.8×</span></td></tr><tr><td>Platform thread per task (cached pool)</td><td>265 ms<br><span class='small'>1.2×</span></td><td>829 ms<br><span class='small'>0.7×</span></td><td>272 ms<br><span class='small'>1.8×</span></td></tr><tr><td>Virtual thread per task</td><td>208 ms<br><span class='small'>1.6×</span></td><td>488 ms<br><span class='small'>1.1×</span></td><td><b>264 ms</b><br><span class='small'>1.9×</span></td></tr><tr><td>Parallel stream</td><td><b>168 ms</b><br><span class='small'>2.0×</span></td><td><b>279 ms</b><br><span class='small'>2.0×</span></td><td>352 ms<br><span class='small'>1.4×</span></td></tr></table></div><p class='small'>Median of 7 timed runs after 3 warm-ups. The small number is the speed-up over the sequential for loop in the same run. Bold is the fastest in its column.</p>
+<details><summary>An earlier desktop run (JDK 27, November 5): slower overall, same pattern</summary>
+<div class='tablewrap'><table><tr><th>Strategy</th><th>JDK 27<br>10,000 tasks<br><span class='small'>× 1,000 numbers</span></th><th>JDK 27<br>100,000 tasks<br><span class='small'>× 100</span></th><th>JDK 27<br>100 tasks<br><span class='small'>× 100,000</span></th></tr><tr><td>Sequential for loop</td><td>742 ms<br><span class='small'>1.0×</span></td><td>798 ms<br><span class='small'>1.0×</span></td><td>689 ms<br><span class='small'>1.0×</span></td></tr><tr><td>Sequential stream</td><td>731 ms<br><span class='small'>1.0×</span></td><td>769 ms<br><span class='small'>1.0×</span></td><td>705 ms<br><span class='small'>1.0×</span></td></tr><tr><td>Platform pool, 1 thread per core</td><td>181 ms<br><span class='small'>4.1×</span></td><td>236 ms<br><span class='small'>3.4×</span></td><td>161 ms<br><span class='small'>4.3×</span></td></tr><tr><td>Platform pool, 4 threads per core</td><td>196 ms<br><span class='small'>3.8×</span></td><td>244 ms<br><span class='small'>3.3×</span></td><td>187 ms<br><span class='small'>3.7×</span></td></tr><tr><td>Platform thread per task (cached pool)</td><td>201 ms<br><span class='small'>3.7×</span></td><td>423 ms<br><span class='small'>1.9×</span></td><td>190 ms<br><span class='small'>3.6×</span></td></tr><tr><td>Virtual thread per task</td><td>184 ms<br><span class='small'>4.0×</span></td><td>183 ms<br><span class='small'>4.4×</span></td><td>182 ms<br><span class='small'>3.8×</span></td></tr><tr><td>Parallel stream</td><td><b>173 ms</b><br><span class='small'>4.3×</span></td><td><b>171 ms</b><br><span class='small'>4.7×</span></td><td><b>160 ms</b><br><span class='small'>4.3×</span></td></tr></table></div><p class='small'>Median of 7 timed runs after 3 warm-ups. The small number is the speed-up over the sequential for loop in the same run. Bold is the fastest in its column.</p>
+</details>
+<details><summary>Raw output of every run</summary>
+<p class="small"><b>out/bigdec-desktop-21.txt</b></p><pre class="out"><code>JDK 21.0.11 | cores=16 | tasks=10000 | numbers/task=1000 | runs=7
+
+strategy                            median ms     min ms     max ms     sums/sec
+sequential for-loop                       232        228        298     43103448
+platform fixed pool (cores)               104        102        108     96153846
+platform fixed pool (cores*4)             114        108        118     87719298
+platform thread-per-task (cached)         184        130        256     54347826
+virtual thread-per-task                   105         90        116     95238095
+sequential stream                         261        249        318     38314176
+parallel stream                           111        105        122     90090090
+
+checksum: 9.25868232913E+12
+----
+JDK 21.0.11 | cores=16 | tasks=100000 | numbers/task=100 | runs=7
+
+strategy                            median ms     min ms     max ms     sums/sec
+sequential for-loop                       340        321        405     29411765
+platform fixed pool (cores)               142        126        183     70422535
+platform fixed pool (cores*4)             162        158        179     61728395
+platform thread-per-task (cached)         266        242        283     37593985
+virtual thread-per-task                   141        130        167     70921986
+sequential stream                         350        307        404     28571429
+parallel stream                           118        108        135     84745763
+
+checksum: 9.25868232913E+12
+----
+JDK 21.0.11 | cores=16 | tasks=100 | numbers/task=100000 | runs=7
+
+strategy                            median ms     min ms     max ms     sums/sec
+sequential for-loop                       414        383        578     24154589
+platform fixed pool (cores)               174        156        181     57471264
+platform fixed pool (cores*4)             207        197        224     48309179
+platform thread-per-task (cached)         215        197        244     46511628
+virtual thread-per-task                   193        188        223     51813472
+sequential stream                         398        390        573     25125628
+parallel stream                           168        156        181     59523810
+
+checksum: 9.25868232913E+12</code></pre>
+<p class="small"><b>out/bigdec-desktop-25.txt</b></p><pre class="out"><code>JDK 25.0.5 | cores=16 | tasks=10000 | numbers/task=1000 | runs=7
+
+strategy                            median ms     min ms     max ms     sums/sec
+sequential for-loop                       312        299        446     32051282
+platform fixed pool (cores)               100         92        109    100000000
+platform fixed pool (cores*4)             118        117        129     84745763
+platform thread-per-task (cached)         176        155        343     56818182
+virtual thread-per-task                   120        107        126     83333333
+sequential stream                         323        300        410     30959752
+parallel stream                           102         91        109     98039216
+
+checksum: 9.25868232913E+12
+----
+JDK 25.0.5 | cores=16 | tasks=100000 | numbers/task=100 | runs=7
+
+strategy                            median ms     min ms     max ms     sums/sec
+sequential for-loop                       329        318        429     30395137
+platform fixed pool (cores)               159        140        176     62893082
+platform fixed pool (cores*4)             194        170        203     51546392
+platform thread-per-task (cached)         274        255        309     36496350
+virtual thread-per-task                   125        111        152     80000000
+sequential stream                         366        329        462     27322404
+parallel stream                           103         93        116     97087379
+
+checksum: 9.25868232913E+12
+----
+JDK 25.0.5 | cores=16 | tasks=100 | numbers/task=100000 | runs=7
+
+strategy                            median ms     min ms     max ms     sums/sec
+sequential for-loop                       430        411        614     23255814
+platform fixed pool (cores)               181        159        208     55248619
+platform fixed pool (cores*4)             209        191        215     47846890
+platform thread-per-task (cached)         200        196        231     50000000
+virtual thread-per-task                   200        180        211     50000000
+sequential stream                         397        382        559     25188917
+parallel stream                           193        188        220     51813472
+
+checksum: 9.25868232913E+12</code></pre>
+<p class="small"><b>out/bigdec-desktop-27.txt</b></p><pre class="out"><code>JDK 27.0.1 | cores=16 | tasks=10000 | numbers/task=1000 | runs=7
+
+strategy                            median ms     min ms     max ms     sums/sec
+sequential for-loop                       458        417        505     21834061
+platform fixed pool (cores)               160        154        173     62500000
+platform fixed pool (cores*4)             164        162        176     60975610
+platform thread-per-task (cached)         203        176        242     49261084
+virtual thread-per-task                   160        154        165     62500000
+sequential stream                         480        432        871     20833333
+parallel stream                           157        153        168     63694268
+
+checksum: 9.25868232913E+12
+----
+JDK 27.0.1 | cores=16 | tasks=100000 | numbers/task=100 | runs=7
+
+strategy                            median ms     min ms     max ms     sums/sec
+sequential for-loop                       457        446        547     21881838
+platform fixed pool (cores)               250        231        267     40000000
+platform fixed pool (cores*4)             267        256        280     37453184
+platform thread-per-task (cached)         438        405        537     22831050
+virtual thread-per-task                   184        173        211     54347826
+sequential stream                         732        520        836     13661202
+parallel stream                           132        130        140     75757576
+
+checksum: 9.25868232913E+12
+----
+JDK 27.0.1 | cores=16 | tasks=100 | numbers/task=100000 | runs=7
+
+strategy                            median ms     min ms     max ms     sums/sec
+sequential for-loop                       463        411        496     21598272
+platform fixed pool (cores)               135        133        145     74074074
+platform fixed pool (cores*4)             170        157        189     58823529
+platform thread-per-task (cached)         186        174        206     53763441
+virtual thread-per-task                   178        153        213     56179775
+sequential stream                         370        357        426     27027027
+parallel stream                           156        152        164     64102564
+
+checksum: 9.25868232913E+12</code></pre>
+<p class="small"><b>out/bigdec-desktop-27-nov5.txt</b></p><pre class="out"><code>JDK 27.0.1 | cores=16 | tasks=10000 | numbers/task=1000 | runs=7
+
+strategy                            median ms     min ms     max ms     sums/sec
+sequential for-loop                       742        715        856     13477089
+platform fixed pool (cores)               181        155        195     55248619
+platform fixed pool (cores*4)             196        192        204     51020408
+platform thread-per-task (cached)         201        189        208     49751244
+virtual thread-per-task                   184        172        190     54347826
+sequential stream                         731        712        754     13679891
+parallel stream                           173        158        202     57803468
+
+checksum: 9.25868232913E+12
+----
+JDK 27.0.1 | cores=16 | tasks=100000 | numbers/task=100 | runs=7
+
+strategy                            median ms     min ms     max ms     sums/sec
+sequential for-loop                       798        795        837     12531328
+platform fixed pool (cores)               236        213        243     42372881
+platform fixed pool (cores*4)             244        238        249     40983607
+platform thread-per-task (cached)         423        411        441     23640662
+virtual thread-per-task                   183        177        204     54644809
+sequential stream                         769        730       1189     13003901
+parallel stream                           171        159        197     58479532
+
+checksum: 9.25868232913E+12
+----
+JDK 27.0.1 | cores=16 | tasks=100 | numbers/task=100000 | runs=7
+
+strategy                            median ms     min ms     max ms     sums/sec
+sequential for-loop                       689        674       1143     14513788
+platform fixed pool (cores)               161        150        194     62111801
+platform fixed pool (cores*4)             187        179        199     53475936
+platform thread-per-task (cached)         190        175        198     52631579
+virtual thread-per-task                   182        173        189     54945055
+sequential stream                         705        685        739     14184397
+parallel stream                           160        152        183     62500000
+
+checksum: 9.25868232913E+12</code></pre>
+<p class="small"><b>out/bigdec-container-21.txt</b></p><pre class="out"><code>JDK 21.0.12.1 | cores=2 | tasks=10000 | numbers/task=1000 | runs=7
+
+strategy                            median ms     min ms     max ms     sums/sec
+sequential for-loop                       329        287        643     30395137
+platform fixed pool (cores)               219        195        357     45662100
+platform fixed pool (cores*4)             172        160        333     58139535
+platform thread-per-task (cached)         265        219        345     37735849
+virtual thread-per-task                   208        190        390     48076923
+sequential stream                         351        290        546     28490028
+parallel stream                           168        166        306     59523810
+
+checksum: 9.25868232913E+12
+----
+JDK 21.0.12.1 | cores=2 | tasks=100000 | numbers/task=100 | runs=7
+
+strategy                            median ms     min ms     max ms     sums/sec
+sequential for-loop                       553        503        769     18083183
+platform fixed pool (cores)               414        399        598     24154589
+platform fixed pool (cores*4)             456        419        553     21929825
+platform thread-per-task (cached)         829        783       1000     12062726
+virtual thread-per-task                   488        471       1472     20491803
+sequential stream                         527        471        786     18975332
+parallel stream                           279        262        436     35842294
+
+checksum: 9.25868232913E+12
+----
+JDK 21.0.12.1 | cores=2 | tasks=100 | numbers/task=100000 | runs=7
+
+strategy                            median ms     min ms     max ms     sums/sec
+sequential for-loop                       498        466        788     20080321
+platform fixed pool (cores)               270        235        411     37037037
+platform fixed pool (cores*4)             271        244        404     36900369
+platform thread-per-task (cached)         272        251        398     36764706
+virtual thread-per-task                   264        244        379     37878788
+sequential stream                         492        453        766     20325203
+parallel stream                           352        248        410     28409091
+
+checksum: 9.25868232913E+12</code></pre>
+</details>
+
+<h3 id="cpu-findings">What the numbers say</h3>
+<ol>
+<li><b>Spreading the work helps, but nowhere near 16×.</b> The best strategy beat the loop by 2.2–3.5× on the 16-thread desktop (4.3–4.7× in the November 5 run). Only 4 of the 12 cores have a second hardware thread, the 8 efficiency cores are slower, all-core clocks are lower than the single-core boost, and every addition allocates, which loads the memory system and the garbage collector. <span class="tag m">MEASURED</span> <span class="tag i">INFERRED</span> (the causes)</li>
+<li><b>Two cores are two cores.</b> On the 2-vCPU machine the best strategy reached 1.9–2.0×, close to the ideal 2×. <span class="tag m">MEASURED</span></li>
+<li><b>Virtual threads don't speed up CPU work, and don't slow it down much either.</b> Against a pool sized to the cores, virtual threads were faster in 5 of 12 cells and at most 1.32× slower in the rest. With 10,000 tasks on JDK 27 both took 160 ms. That matches Lab 3, at a larger scale and on more cores. <span class="tag m">MEASURED</span></li>
+<li><b>With tiny tasks, how work is handed out decides the result.</b> At 100,000 tasks of 100 numbers on JDK 27: parallel stream 132 ms, virtual threads 184 ms, core-sized pool 250 ms, thread per task 438 ms. On the desktop, on every JDK, the two work-stealing strategies (parallel stream, virtual threads) were at least as fast as one shared queue (the pool), and much faster than a new OS thread per task. On 2 vCPUs, with only two carriers to steal between, the pool beat virtual threads (414 ms vs 488 ms). <span class="tag m">MEASURED</span></li>
+<li><b>Platform thread per task is the outlier, and the reason virtual threads exist.</b> At 100,000 tasks it was at least 1.5× slower than virtual threads on every machine and JDK (266 ms vs 141 ms on JDK 21), and on 2 vCPUs slower than the plain loop. Same programming model, very different cost. <span class="tag m">MEASURED</span></li>
+<li><b>More threads than cores only adds switching.</b> On the desktop, 64 threads was slower than 16 in all 9 cells, for example 194 ms vs 159 ms at 100,000 tasks on JDK 25. Size CPU pools to the cores. <span class="tag m">MEASURED</span></li>
+<li><b>A sequential stream is a for loop.</b> Its time ranged from 0.80× to 1.60× of the loop's in the same run, and it was faster in some cells and slower in others. Streams don't parallelize anything until you ask. <span class="tag m">MEASURED</span></li>
+<li><b>Don't compare JDK versions from these tables.</b> The same loop took 232 ms, 312 ms and 458 ms on JDK 21, 25 and 27 run minutes apart, and 742 ms on JDK 27 three days earlier. A laptop-class chip's clocks follow power and thermal state, which swamps any JDK difference here. Compare strategies within one run, as the speed-up numbers do. <span class="tag m">MEASURED</span> <span class="tag i">INFERRED</span> (the cause)</li>
+</ol>
+
+<div class="callout"><b>For CPU-bound work:</b>
+<ul>
+<li>Use a parallel stream for a self-contained computation, or a <code>ForkJoinPool</code> or fixed pool sized to <code>availableProcessors()</code> when you need isolation from the rest of the JVM.</li>
+<li>Make tasks coarse enough that handing them out is cheap compared with running them. 1,000 additions per task was plenty here; 100 was where dispatch started to show.</li>
+<li>Virtual threads are fine when code is already written thread-per-task, but don't expect a speed-up. In a service, keep long CPU work off the virtual-thread scheduler so it doesn't hold carriers away from request handling.</li>
+<li>Never give CPU-bound work more platform threads than cores, and never start one OS thread per small task.</li>
+</ul>
+<span class="tag i">INFERRED</span></div>
+
+
+<h2 id="spring">14. At work: Spring executor beans, RestTemplate → RestClient, Java 17 → 25</h2>
 <p>This section follows a migration path common in enterprise Spring codebases: Spring executors defined as beans, headers forwarded on every outbound call, most code on RestTemplate and Java 17 today, and RestClient on Java 25 as the target. The benchmark is a real Spring Boot app. A request comes in with the four headers, the controller fans out to the same echo server as section 12, and every response is checked. It ran on three stacks: <b>Java 17 + Boot 3.5</b> (today), <b>Java 25 + Boot 3.5</b> (JDK upgrade only) and <b>Java 25 + Boot 4.1</b> (the target). Each stack ran on two machines: <b>the Windows desktop</b> (i7-1260P, 16 threads, Windows 11; Temurin 17.0.20.1 and 25.0.5) and the 2-vCPU Linux cloud machine (Temurin 17.0.21 and 25.0.5). <span class="tag m">MEASURED</span></p>
 <div class="callout"><b>Where Spring stands.</b> The Spring Framework 7.0 reference marks RestTemplate as deprecated in favor of RestClient. The <code>@Deprecated</code> annotation lands in 7.1, and removal is planned for 8.0. Spring Boot 4.2 milestones deprecate <code>RestTemplateBuilder</code>. RestClient has existed since Spring Framework 6.1 (Boot 3.2), so your Java 17 repos can start using it now. <span class="tag s">SOURCED</span></div>
 
@@ -1460,7 +1881,7 @@ public class FanoutController {
 </details>
 
 
-<h2 id="field">14. What we hit, and what others have reported</h2>
+<h2 id="field">15. What we hit, and what others have reported</h2>
 <p>Every failure in this page's benchmarks has been reported elsewhere: in OpenJDK mailing lists and bug trackers, Spring issues, library docs and production write-ups. This section links each one to those reports, so you can tell a quirk of this test setup from something your services will meet. Where our own runs confirm a cause, the tag says so.</p>
 
 <h3 id="field-storm">Connection storms: the server's accept queue, confirmed</h3>
@@ -1484,7 +1905,7 @@ public class FanoutController {
 <p class="small">Every report is summarized in our own words; follow the links in <a href="#sources">Sources</a> for the originals. Where a report and our measurement agree on the cause, we say so. Where only the report gives a cause, the tag is <span class="tag s">SOURCED</span>.</p>
 
 
-<h2 id="teach">15. Teaching kit</h2>
+<h2 id="teach">16. Teaching kit</h2>
 <p>Written for a lunch-and-learn series or a team onboarding, for developers who already know <code>ExecutorService</code>. Everything runs with nothing but a JDK: <code>java File.java</code> compiles and runs a single source file (JDK 11+), so there's no build tool to set up.</p>
 <h3 id="objectives">Learning objectives</h3>
 <p>By the end, a learner can:</p>
@@ -1513,7 +1934,7 @@ public class FanoutController {
 <h3 id="myths">Misconceptions students bring</h3>
 <div class="tablewrap"><table>
 <tr><th>Belief</th><th>What's true</th><th>Evidence</th></tr>
-<tr><td>"Virtual threads are faster."</td><td>They make waiting cheap. CPU-bound work is unchanged.</td><td>Lab 3</td></tr>
+<tr><td>"Virtual threads are faster."</td><td>They make waiting cheap. CPU-bound work is unchanged.</td><td>Lab 3, <a href="#cpu">section 13</a></td></tr>
 <tr><td>"They're like goroutines / green threads, so they're preemptive."</td><td>They aren't time-sliced. A virtual thread that never blocks keeps its carrier.</td><td>JEP 444; simulator CPU preset</td></tr>
 <tr><td>"Put them in a pool to be safe."</td><td>Pooling defeats the point. Limit the resource with a semaphore instead.</td><td>Lab 6</td></tr>
 <tr><td>"Never use synchronized with virtual threads."</td><td>True advice on JDK 21–23, outdated on 24+.</td><td>Lab 4 on 21 vs 25</td></tr>
@@ -1578,7 +1999,7 @@ FAIL [Method &lt;app.Cache.load(java.lang.String)&gt; has modifier SYNCHRONIZED 
 </div>
 <p>The second guardrail is Lab 10 turned into a test: run the load test under a JFR recording and fail the build if any <code>jdk.VirtualThreadPinned</code> event appears. It catches pinning in libraries, which a static rule can't see.</p>
 
-<h2 id="quiz">16. Check yourself</h2>
+<h2 id="quiz">17. Check yourself</h2>
 <p class="small">Eight questions. Choose an answer for instant feedback, or open "Answer" if scripts are off.</p>
 <div id="quizbox"><div class="q" id="q0"><p>1. A service&#x27;s handlers spend 95% of their time waiting on a database. What do virtual threads most likely improve?</p>
 <label><input type="radio" name="q0" value="0"> Latency of each request</label>
@@ -1722,7 +2143,7 @@ FAIL [Method &lt;app.Cache.load(java.lang.String)&gt; has modifier SYNCHRONIZED 
 <footer><div class="wrap" id="colophon">
   <h3>Colophon and self-tests</h3>
   <p>One HTML file, no external requests, no tracking. Works from email, <code>file://</code> or any web server. Scripts drive the calculator, simulator and quiz; everything else reads without them.</p>
-  <p>Labs were run on a 2-vCPU Intel Xeon @ 2.30 GHz Linux container with OpenJDK 21.0.12 (Ubuntu), Temurin 25.0.5 LTS and Temurin 27.0.1. The GET benchmark was also run on the Windows desktop (i7-1260P, Windows 11, JDK 21.0.11 and 26). Everything was then inlined into this page by a build script so the source and output shown are exactly what ran. Built 2026-10-31.</p>
+  <p>Labs were run on a 2-vCPU Intel Xeon @ 2.30 GHz Linux container with OpenJDK 21.0.12 (Ubuntu), Temurin 25.0.5 LTS and Temurin 27.0.1. The GET benchmark was also run on the Windows desktop (i7-1260P, Windows 11, JDK 21.0.11 and 26). Everything was then inlined into this page by a build script so the source and output shown are exactly what ran. Built 2026-11-08.</p>
   <p id="teststatus">Self-tests: <span class="no">not run (scripts disabled?)</span>. If this message stays, download the file and open it directly in a browser.</p>
   <details><summary>Test log</summary><div id="testlog"></div></details>
 </div></footer>
@@ -1850,6 +2271,7 @@ function scoreQuiz(){
 
 /* ---------- GET benchmark chart ---------- */
 var BENCH = {"methods": [{"id": "loop", "label": "for loop (sequential)"}, {"id": "cf-async", "label": "CompletableFuture + sendAsync"}, {"id": "cf-pool", "label": "CompletableFuture + 64-thread pool"}, {"id": "cf-common", "label": "CompletableFuture + common pool"}, {"id": "vt", "label": "Virtual threads"}, {"id": "vt-vtclient", "label": "VT + client on VT executor"}, {"id": "vt-sync", "label": "VT + synchronized wrapper"}, {"id": "sts", "label": "StructuredTaskScope + ScopedValue"}, {"id": "vt-scoped", "label": "VT executor + ScopedValue"}], "machines": {"container": {"jdks": [21, 25, 27]}, "desktop": {"jdks": [21, 26]}}, "data": {"container": [{"jdk": 21, "method": "loop", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [8746, 8614, 8488], "medianMs": 8614, "forwarded": 400, "peakPlatformThreads": 11, "cores": 2, "latencyMs": 20}, {"jdk": 21, "method": "cf-async", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [487, 343, 337], "medianMs": 343, "forwarded": 400, "peakPlatformThreads": 86, "cores": 2, "latencyMs": 20}, {"jdk": 21, "method": "cf-pool", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [301, 244, 238], "medianMs": 244, "forwarded": 400, "peakPlatformThreads": 116, "cores": 2, "latencyMs": 20}, {"jdk": 21, "method": "cf-common", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [386, 237, 213], "medianMs": 237, "forwarded": 400, "peakPlatformThreads": 209, "cores": 2, "latencyMs": 20}, {"jdk": 21, "method": "vt", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [297, 189, 153], "medianMs": 189, "forwarded": 400, "peakPlatformThreads": 72, "cores": 2, "latencyMs": 20}, {"jdk": 21, "method": "vt-vtclient", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [313, 186, 179], "medianMs": 186, "forwarded": 400, "peakPlatformThreads": 9, "cores": 2, "latencyMs": 20}, {"jdk": 21, "method": "vt-sync", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [4345, 4309, 4264], "medianMs": 4309, "forwarded": 400, "peakPlatformThreads": 15, "cores": 2, "latencyMs": 20}, {"jdk": 21, "method": "cf-async", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [1648, 1252, 1319], "medianMs": 1319, "forwarded": 2000, "peakPlatformThreads": 175, "cores": 2, "latencyMs": 20}, {"jdk": 21, "method": "cf-pool", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [951, 801, 741], "medianMs": 801, "forwarded": 2000, "peakPlatformThreads": 115, "cores": 2, "latencyMs": 20}, {"jdk": 21, "method": "cf-common", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [1161, 683, 653], "medianMs": 683, "forwarded": 2000, "peakPlatformThreads": 591, "cores": 2, "latencyMs": 20}, {"jdk": 21, "method": "vt", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [900, 476, 342], "medianMs": 476, "forwarded": 2000, "peakPlatformThreads": 105, "cores": 2, "latencyMs": 20}, {"jdk": 21, "method": "vt-vtclient", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [1050, 527, 401], "medianMs": 527, "forwarded": 2000, "peakPlatformThreads": 9, "cores": 2, "latencyMs": 20}, {"jdk": 21, "method": "vt-sync", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [21207, 20765, 20708], "medianMs": 20765, "forwarded": 2000, "peakPlatformThreads": 16, "cores": 2, "latencyMs": 20}, {"jdk": 21, "method": "loop", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [2160], "medianMs": 2160, "forwarded": 100, "peakPlatformThreads": 10, "cores": 2, "latencyMs": 20}, {"jdk": 21, "method": "cf-async", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [92], "medianMs": 92, "forwarded": 50, "peakPlatformThreads": 42, "cores": 2, "latencyMs": 20}, {"jdk": 21, "method": "cf-pool", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [79], "medianMs": 79, "forwarded": 0, "peakPlatformThreads": 92, "cores": 2, "latencyMs": 20}, {"jdk": 21, "method": "cf-common", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [76], "medianMs": 76, "forwarded": 0, "peakPlatformThreads": 108, "cores": 2, "latencyMs": 20}, {"jdk": 21, "method": "vt", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [76], "medianMs": 76, "forwarded": 0, "peakPlatformThreads": 41, "cores": 2, "latencyMs": 20}, {"jdk": 21, "method": "vt-vtclient", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [89], "medianMs": 89, "forwarded": 0, "peakPlatformThreads": 9, "cores": 2, "latencyMs": 20}, {"jdk": 21, "method": "vt-sync", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [1081], "medianMs": 1081, "forwarded": 0, "peakPlatformThreads": 14, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "loop", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [8539, 8440, 8387], "medianMs": 8440, "forwarded": 400, "peakPlatformThreads": 11, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "cf-async", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [207, 155, 155], "medianMs": 155, "forwarded": 400, "peakPlatformThreads": 64, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "cf-pool", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [261, 249, 203], "medianMs": 249, "forwarded": 400, "peakPlatformThreads": 126, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "cf-common", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [247, 195, 153], "medianMs": 195, "forwarded": 400, "peakPlatformThreads": 177, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "vt", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [225, 150, 129], "medianMs": 150, "forwarded": 400, "peakPlatformThreads": 74, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "vt-vtclient", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [255, 176, 144], "medianMs": 176, "forwarded": 400, "peakPlatformThreads": 10, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "vt-sync", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [268, 185, 126], "medianMs": 185, "forwarded": 400, "peakPlatformThreads": 85, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "sts", "n": 200, "calls": 400, "mode": "scoped", "runsMs": [227, 143, 116], "medianMs": 143, "forwarded": 400, "peakPlatformThreads": 68, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "vt-scoped", "n": 200, "calls": 400, "mode": "scoped", "runsMs": [250, 191, 133], "medianMs": 191, "forwarded": 0, "peakPlatformThreads": 78, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "cf-async", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [863, 594, 436], "medianMs": 594, "forwarded": 2000, "peakPlatformThreads": 150, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "cf-pool", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [886, 765, 741], "medianMs": 765, "forwarded": 2000, "peakPlatformThreads": 120, "cores": 2, "latencyMs": 20}, {"error": "Caused by: java.util.concurrent.RejectedExecutionException: Thread limit exceeded replacing blocked worker", "jdk": 25, "method": "cf-common", "n": 1000, "calls": 2000, "mode": "explicit", "medianMs": null, "forwarded": 0, "peakPlatformThreads": null, "latencyMs": 20}, {"jdk": 25, "method": "vt", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [874, 483, 395], "medianMs": 483, "forwarded": 2000, "peakPlatformThreads": 165, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "vt-vtclient", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [928, 368, 420], "medianMs": 420, "forwarded": 2000, "peakPlatformThreads": 10, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "vt-sync", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [1005, 465, 335], "medianMs": 465, "forwarded": 2000, "peakPlatformThreads": 118, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "sts", "n": 1000, "calls": 2000, "mode": "scoped", "runsMs": [912, 529, 421], "medianMs": 529, "forwarded": 2000, "peakPlatformThreads": 112, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "vt-scoped", "n": 1000, "calls": 2000, "mode": "scoped", "runsMs": [898, 492, 431], "medianMs": 492, "forwarded": 0, "peakPlatformThreads": 161, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "loop", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [2162], "medianMs": 2162, "forwarded": 100, "peakPlatformThreads": 11, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "cf-async", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [88], "medianMs": 88, "forwarded": 50, "peakPlatformThreads": 55, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "cf-pool", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [86], "medianMs": 86, "forwarded": 0, "peakPlatformThreads": 85, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "cf-common", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [78], "medianMs": 78, "forwarded": 0, "peakPlatformThreads": 80, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "vt", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [72], "medianMs": 72, "forwarded": 0, "peakPlatformThreads": 47, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "vt-vtclient", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [85], "medianMs": 85, "forwarded": 0, "peakPlatformThreads": 10, "cores": 2, "latencyMs": 20}, {"jdk": 25, "method": "vt-sync", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [78], "medianMs": 78, "forwarded": 0, "peakPlatformThreads": 45, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "loop", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [8601, 8494, 8417], "medianMs": 8494, "forwarded": 400, "peakPlatformThreads": 15, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "cf-async", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [259, 184, 134], "medianMs": 184, "forwarded": 400, "peakPlatformThreads": 76, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "cf-pool", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [274, 252, 218], "medianMs": 252, "forwarded": 400, "peakPlatformThreads": 128, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "cf-common", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [254, 199, 151], "medianMs": 199, "forwarded": 400, "peakPlatformThreads": 166, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "vt", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [254, 138, 117], "medianMs": 138, "forwarded": 400, "peakPlatformThreads": 77, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "vt-vtclient", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [253, 141, 114], "medianMs": 141, "forwarded": 400, "peakPlatformThreads": 11, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "vt-sync", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [224, 161, 111], "medianMs": 161, "forwarded": 400, "peakPlatformThreads": 75, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "sts", "n": 200, "calls": 400, "mode": "scoped", "runsMs": [250, 162, 130], "medianMs": 162, "forwarded": 400, "peakPlatformThreads": 84, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "vt-scoped", "n": 200, "calls": 400, "mode": "scoped", "runsMs": [229, 139, 101], "medianMs": 139, "forwarded": 0, "peakPlatformThreads": 76, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "cf-async", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [809, 578, 462], "medianMs": 578, "forwarded": 2000, "peakPlatformThreads": 141, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "cf-pool", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [956, 773, 762], "medianMs": 773, "forwarded": 2000, "peakPlatformThreads": 129, "cores": 2, "latencyMs": 20}, {"error": "Caused by: java.util.concurrent.RejectedExecutionException: Thread limit exceeded replacing blocked worker", "jdk": 27, "method": "cf-common", "n": 1000, "calls": 2000, "mode": "explicit", "medianMs": null, "forwarded": 0, "peakPlatformThreads": null, "latencyMs": 20}, {"jdk": 27, "method": "vt", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [872, 478, 343], "medianMs": 478, "forwarded": 2000, "peakPlatformThreads": 128, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "vt-vtclient", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [826, 453, 437], "medianMs": 453, "forwarded": 2000, "peakPlatformThreads": 11, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "vt-sync", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [850, 510, 396], "medianMs": 510, "forwarded": 2000, "peakPlatformThreads": 103, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "sts", "n": 1000, "calls": 2000, "mode": "scoped", "runsMs": [884, 547, 439], "medianMs": 547, "forwarded": 2000, "peakPlatformThreads": 88, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "vt-scoped", "n": 1000, "calls": 2000, "mode": "scoped", "runsMs": [826, 390, 346], "medianMs": 390, "forwarded": 0, "peakPlatformThreads": 84, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "loop", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [2168], "medianMs": 2168, "forwarded": 100, "peakPlatformThreads": 15, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "cf-async", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [75], "medianMs": 75, "forwarded": 50, "peakPlatformThreads": 62, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "cf-pool", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [97], "medianMs": 97, "forwarded": 0, "peakPlatformThreads": 112, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "cf-common", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [101], "medianMs": 101, "forwarded": 0, "peakPlatformThreads": 97, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "vt", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [91], "medianMs": 91, "forwarded": 0, "peakPlatformThreads": 64, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "vt-vtclient", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [76], "medianMs": 76, "forwarded": 0, "peakPlatformThreads": 11, "cores": 2, "latencyMs": 20}, {"jdk": 27, "method": "vt-sync", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [78], "medianMs": 78, "forwarded": 0, "peakPlatformThreads": 60, "cores": 2, "latencyMs": 20}], "desktop": [{"jdk": 21, "method": "loop", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [12467, 12472, 12444], "medianMs": 12467, "forwarded": 400, "peakPlatformThreads": 11, "cores": 16, "latencyMs": 20}, {"jdk": 21, "method": "cf-async", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [139, 85, 88], "medianMs": 88, "forwarded": 400, "peakPlatformThreads": 100, "cores": 16, "latencyMs": 20}, {"jdk": 21, "method": "cf-pool", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [246, 245, 218], "medianMs": 245, "forwarded": 400, "peakPlatformThreads": 141, "cores": 16, "latencyMs": 20}, {"jdk": 21, "method": "cf-common", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [170, 110, 120], "medianMs": 120, "forwarded": 400, "peakPlatformThreads": 210, "cores": 16, "latencyMs": 20}, {"jdk": 21, "method": "vt", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [120, 106, 84], "medianMs": 106, "forwarded": 400, "peakPlatformThreads": 119, "cores": 16, "latencyMs": 20}, {"jdk": 21, "method": "vt-vtclient", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [110, 79, 92], "medianMs": 92, "forwarded": 400, "peakPlatformThreads": 24, "cores": 16, "latencyMs": 20}, {"jdk": 21, "method": "vt-sync", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [808, 808, 808], "medianMs": 808, "forwarded": 400, "peakPlatformThreads": 49, "cores": 16, "latencyMs": 20}, {"jdk": 21, "method": "cf-async", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [367, 328, 293], "medianMs": 328, "forwarded": 2000, "peakPlatformThreads": 132, "cores": 16, "latencyMs": 20}, {"jdk": 21, "method": "cf-pool", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [991, 999, 994], "medianMs": 994, "forwarded": 2000, "peakPlatformThreads": 159, "cores": 16, "latencyMs": 20}, {"error": "Caused by: java.util.concurrent.RejectedExecutionException: Thread limit exceeded replacing blocked worker", "jdk": 21, "method": "cf-common", "n": 1000, "calls": 2000, "mode": "explicit", "medianMs": null, "forwarded": 0, "peakPlatformThreads": null, "latencyMs": 20}, {"jdk": 21, "method": "vt", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [505, 396, 352], "medianMs": 396, "forwarded": 2000, "peakPlatformThreads": 135, "cores": 16, "latencyMs": 20}, {"jdk": 21, "method": "vt-vtclient", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [475, 372, 347], "medianMs": 372, "forwarded": 2000, "peakPlatformThreads": 24, "cores": 16, "latencyMs": 20}, {"jdk": 21, "method": "vt-sync", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [3920, 3914, 3919], "medianMs": 3919, "forwarded": 2000, "peakPlatformThreads": 54, "cores": 16, "latencyMs": 20}, {"jdk": 21, "method": "loop", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [3108], "medianMs": 3108, "forwarded": 100, "peakPlatformThreads": 11, "cores": 16, "latencyMs": 20}, {"jdk": 21, "method": "cf-async", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [62], "medianMs": 62, "forwarded": 50, "peakPlatformThreads": 81, "cores": 16, "latencyMs": 20}, {"jdk": 21, "method": "cf-pool", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [71], "medianMs": 71, "forwarded": 0, "peakPlatformThreads": 112, "cores": 16, "latencyMs": 20}, {"jdk": 21, "method": "cf-common", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [61], "medianMs": 61, "forwarded": 0, "peakPlatformThreads": 114, "cores": 16, "latencyMs": 20}, {"jdk": 21, "method": "vt", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [69], "medianMs": 69, "forwarded": 0, "peakPlatformThreads": 81, "cores": 16, "latencyMs": 20}, {"jdk": 21, "method": "vt-vtclient", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [73], "medianMs": 73, "forwarded": 0, "peakPlatformThreads": 24, "cores": 16, "latencyMs": 20}, {"jdk": 21, "method": "vt-sync", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [249], "medianMs": 249, "forwarded": 0, "peakPlatformThreads": 46, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "loop", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [12441, 12448, 12451], "medianMs": 12448, "forwarded": 400, "peakPlatformThreads": 15, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "cf-async", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [124, 94, 76], "medianMs": 94, "forwarded": 400, "peakPlatformThreads": 147, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "cf-pool", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [246, 249, 248], "medianMs": 248, "forwarded": 400, "peakPlatformThreads": 156, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "cf-common", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [158, 124, 94], "medianMs": 124, "forwarded": 400, "peakPlatformThreads": 240, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "vt", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [113, 91, 77], "medianMs": 91, "forwarded": 400, "peakPlatformThreads": 227, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "vt-vtclient", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [128, 94, 62], "medianMs": 94, "forwarded": 400, "peakPlatformThreads": 24, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "vt-sync", "n": 200, "calls": 400, "mode": "explicit", "runsMs": [122, 84, 90], "medianMs": 90, "forwarded": 400, "peakPlatformThreads": 226, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "sts", "n": 200, "calls": 400, "mode": "scoped", "runsMs": [111, 95, 74], "medianMs": 95, "forwarded": 400, "peakPlatformThreads": 223, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "vt-scoped", "n": 200, "calls": 400, "mode": "scoped", "runsMs": [121, 84, 76], "medianMs": 84, "forwarded": 0, "peakPlatformThreads": 197, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "cf-async", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [386, 403, 434], "medianMs": 403, "forwarded": 2000, "peakPlatformThreads": 225, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "cf-pool", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [997, 994, 997], "medianMs": 997, "forwarded": 2000, "peakPlatformThreads": 164, "cores": 16, "latencyMs": 20}, {"error": "Caused by: java.util.concurrent.RejectedExecutionException: Thread limit exceeded replacing blocked worker", "jdk": 26, "method": "cf-common", "n": 1000, "calls": 2000, "mode": "explicit", "medianMs": null, "forwarded": 0, "peakPlatformThreads": null, "latencyMs": 20}, {"jdk": 26, "method": "vt", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [571, 439, 397], "medianMs": 439, "forwarded": 2000, "peakPlatformThreads": 182, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "vt-vtclient", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [617, 370, 321], "medianMs": 370, "forwarded": 2000, "peakPlatformThreads": 24, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "vt-sync", "n": 1000, "calls": 2000, "mode": "explicit", "runsMs": [584, 407, 437], "medianMs": 437, "forwarded": 2000, "peakPlatformThreads": 198, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "sts", "n": 1000, "calls": 2000, "mode": "scoped", "runsMs": [631, 397, 391], "medianMs": 397, "forwarded": 2000, "peakPlatformThreads": 308, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "vt-scoped", "n": 1000, "calls": 2000, "mode": "scoped", "runsMs": [603, 410, 491], "medianMs": 491, "forwarded": 0, "peakPlatformThreads": 241, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "loop", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [3116], "medianMs": 3116, "forwarded": 100, "peakPlatformThreads": 15, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "cf-async", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [63], "medianMs": 63, "forwarded": 50, "peakPlatformThreads": 99, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "cf-pool", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [60], "medianMs": 60, "forwarded": 0, "peakPlatformThreads": 127, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "cf-common", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [64], "medianMs": 64, "forwarded": 0, "peakPlatformThreads": 119, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "vt", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [62], "medianMs": 62, "forwarded": 0, "peakPlatformThreads": 89, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "vt-vtclient", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [60], "medianMs": 60, "forwarded": 0, "peakPlatformThreads": 24, "cores": 16, "latencyMs": 20}, {"jdk": 26, "method": "vt-sync", "n": 50, "calls": 100, "mode": "threadlocal", "runsMs": [61], "medianMs": 61, "forwarded": 0, "peakPlatformThreads": 90, "cores": 16, "latencyMs": 20}]}};
+var CPU = {"checksum": "9.25868232913E+12", "rows": [{"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 10000, "perTask": 1000, "machine": "container", "jdk": 21, "run": "main", "strategy": "loop", "medianMs": 329, "minMs": 287, "maxMs": 643}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 10000, "perTask": 1000, "machine": "container", "jdk": 21, "run": "main", "strategy": "fixed", "medianMs": 219, "minMs": 195, "maxMs": 357}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 10000, "perTask": 1000, "machine": "container", "jdk": 21, "run": "main", "strategy": "fixed4", "medianMs": 172, "minMs": 160, "maxMs": 333}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 10000, "perTask": 1000, "machine": "container", "jdk": 21, "run": "main", "strategy": "cached", "medianMs": 265, "minMs": 219, "maxMs": 345}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 10000, "perTask": 1000, "machine": "container", "jdk": 21, "run": "main", "strategy": "vt", "medianMs": 208, "minMs": 190, "maxMs": 390}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 10000, "perTask": 1000, "machine": "container", "jdk": 21, "run": "main", "strategy": "stream", "medianMs": 351, "minMs": 290, "maxMs": 546}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 10000, "perTask": 1000, "machine": "container", "jdk": 21, "run": "main", "strategy": "pstream", "medianMs": 168, "minMs": 166, "maxMs": 306}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 100000, "perTask": 100, "machine": "container", "jdk": 21, "run": "main", "strategy": "loop", "medianMs": 553, "minMs": 503, "maxMs": 769}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 100000, "perTask": 100, "machine": "container", "jdk": 21, "run": "main", "strategy": "fixed", "medianMs": 414, "minMs": 399, "maxMs": 598}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 100000, "perTask": 100, "machine": "container", "jdk": 21, "run": "main", "strategy": "fixed4", "medianMs": 456, "minMs": 419, "maxMs": 553}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 100000, "perTask": 100, "machine": "container", "jdk": 21, "run": "main", "strategy": "cached", "medianMs": 829, "minMs": 783, "maxMs": 1000}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 100000, "perTask": 100, "machine": "container", "jdk": 21, "run": "main", "strategy": "vt", "medianMs": 488, "minMs": 471, "maxMs": 1472}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 100000, "perTask": 100, "machine": "container", "jdk": 21, "run": "main", "strategy": "stream", "medianMs": 527, "minMs": 471, "maxMs": 786}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 100000, "perTask": 100, "machine": "container", "jdk": 21, "run": "main", "strategy": "pstream", "medianMs": 279, "minMs": 262, "maxMs": 436}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 100, "perTask": 100000, "machine": "container", "jdk": 21, "run": "main", "strategy": "loop", "medianMs": 498, "minMs": 466, "maxMs": 788}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 100, "perTask": 100000, "machine": "container", "jdk": 21, "run": "main", "strategy": "fixed", "medianMs": 270, "minMs": 235, "maxMs": 411}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 100, "perTask": 100000, "machine": "container", "jdk": 21, "run": "main", "strategy": "fixed4", "medianMs": 271, "minMs": 244, "maxMs": 404}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 100, "perTask": 100000, "machine": "container", "jdk": 21, "run": "main", "strategy": "cached", "medianMs": 272, "minMs": 251, "maxMs": 398}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 100, "perTask": 100000, "machine": "container", "jdk": 21, "run": "main", "strategy": "vt", "medianMs": 264, "minMs": 244, "maxMs": 379}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 100, "perTask": 100000, "machine": "container", "jdk": 21, "run": "main", "strategy": "stream", "medianMs": 492, "minMs": 453, "maxMs": 766}, {"jdkVersion": "21.0.12.1", "cores": 2, "tasks": 100, "perTask": 100000, "machine": "container", "jdk": 21, "run": "main", "strategy": "pstream", "medianMs": 352, "minMs": 248, "maxMs": 410}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "loop", "medianMs": 232, "minMs": 228, "maxMs": 298}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "fixed", "medianMs": 104, "minMs": 102, "maxMs": 108}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "fixed4", "medianMs": 114, "minMs": 108, "maxMs": 118}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "cached", "medianMs": 184, "minMs": 130, "maxMs": 256}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "vt", "medianMs": 105, "minMs": 90, "maxMs": 116}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "stream", "medianMs": 261, "minMs": 249, "maxMs": 318}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "pstream", "medianMs": 111, "minMs": 105, "maxMs": 122}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "loop", "medianMs": 340, "minMs": 321, "maxMs": 405}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "fixed", "medianMs": 142, "minMs": 126, "maxMs": 183}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "fixed4", "medianMs": 162, "minMs": 158, "maxMs": 179}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "cached", "medianMs": 266, "minMs": 242, "maxMs": 283}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "vt", "medianMs": 141, "minMs": 130, "maxMs": 167}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "stream", "medianMs": 350, "minMs": 307, "maxMs": 404}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "pstream", "medianMs": 118, "minMs": 108, "maxMs": 135}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "loop", "medianMs": 414, "minMs": 383, "maxMs": 578}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "fixed", "medianMs": 174, "minMs": 156, "maxMs": 181}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "fixed4", "medianMs": 207, "minMs": 197, "maxMs": 224}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "cached", "medianMs": 215, "minMs": 197, "maxMs": 244}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "vt", "medianMs": 193, "minMs": 188, "maxMs": 223}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "stream", "medianMs": 398, "minMs": 390, "maxMs": 573}, {"jdkVersion": "21.0.11", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 21, "run": "main", "strategy": "pstream", "medianMs": 168, "minMs": 156, "maxMs": 181}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "loop", "medianMs": 312, "minMs": 299, "maxMs": 446}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "fixed", "medianMs": 100, "minMs": 92, "maxMs": 109}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "fixed4", "medianMs": 118, "minMs": 117, "maxMs": 129}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "cached", "medianMs": 176, "minMs": 155, "maxMs": 343}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "vt", "medianMs": 120, "minMs": 107, "maxMs": 126}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "stream", "medianMs": 323, "minMs": 300, "maxMs": 410}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "pstream", "medianMs": 102, "minMs": 91, "maxMs": 109}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "loop", "medianMs": 329, "minMs": 318, "maxMs": 429}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "fixed", "medianMs": 159, "minMs": 140, "maxMs": 176}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "fixed4", "medianMs": 194, "minMs": 170, "maxMs": 203}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "cached", "medianMs": 274, "minMs": 255, "maxMs": 309}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "vt", "medianMs": 125, "minMs": 111, "maxMs": 152}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "stream", "medianMs": 366, "minMs": 329, "maxMs": 462}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "pstream", "medianMs": 103, "minMs": 93, "maxMs": 116}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "loop", "medianMs": 430, "minMs": 411, "maxMs": 614}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "fixed", "medianMs": 181, "minMs": 159, "maxMs": 208}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "fixed4", "medianMs": 209, "minMs": 191, "maxMs": 215}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "cached", "medianMs": 200, "minMs": 196, "maxMs": 231}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "vt", "medianMs": 200, "minMs": 180, "maxMs": 211}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "stream", "medianMs": 397, "minMs": 382, "maxMs": 559}, {"jdkVersion": "25.0.5", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 25, "run": "main", "strategy": "pstream", "medianMs": 193, "minMs": 188, "maxMs": 220}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "loop", "medianMs": 742, "minMs": 715, "maxMs": 856}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "fixed", "medianMs": 181, "minMs": 155, "maxMs": 195}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "fixed4", "medianMs": 196, "minMs": 192, "maxMs": 204}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "cached", "medianMs": 201, "minMs": 189, "maxMs": 208}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "vt", "medianMs": 184, "minMs": 172, "maxMs": 190}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "stream", "medianMs": 731, "minMs": 712, "maxMs": 754}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "pstream", "medianMs": 173, "minMs": 158, "maxMs": 202}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "loop", "medianMs": 798, "minMs": 795, "maxMs": 837}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "fixed", "medianMs": 236, "minMs": 213, "maxMs": 243}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "fixed4", "medianMs": 244, "minMs": 238, "maxMs": 249}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "cached", "medianMs": 423, "minMs": 411, "maxMs": 441}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "vt", "medianMs": 183, "minMs": 177, "maxMs": 204}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "stream", "medianMs": 769, "minMs": 730, "maxMs": 1189}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "pstream", "medianMs": 171, "minMs": 159, "maxMs": 197}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "loop", "medianMs": 689, "minMs": 674, "maxMs": 1143}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "fixed", "medianMs": 161, "minMs": 150, "maxMs": 194}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "fixed4", "medianMs": 187, "minMs": 179, "maxMs": 199}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "cached", "medianMs": 190, "minMs": 175, "maxMs": 198}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "vt", "medianMs": 182, "minMs": 173, "maxMs": 189}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "stream", "medianMs": 705, "minMs": 685, "maxMs": 739}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 27, "run": "nov5", "strategy": "pstream", "medianMs": 160, "minMs": 152, "maxMs": 183}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "loop", "medianMs": 458, "minMs": 417, "maxMs": 505}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "fixed", "medianMs": 160, "minMs": 154, "maxMs": 173}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "fixed4", "medianMs": 164, "minMs": 162, "maxMs": 176}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "cached", "medianMs": 203, "minMs": 176, "maxMs": 242}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "vt", "medianMs": 160, "minMs": 154, "maxMs": 165}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "stream", "medianMs": 480, "minMs": 432, "maxMs": 871}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 10000, "perTask": 1000, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "pstream", "medianMs": 157, "minMs": 153, "maxMs": 168}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "loop", "medianMs": 457, "minMs": 446, "maxMs": 547}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "fixed", "medianMs": 250, "minMs": 231, "maxMs": 267}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "fixed4", "medianMs": 267, "minMs": 256, "maxMs": 280}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "cached", "medianMs": 438, "minMs": 405, "maxMs": 537}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "vt", "medianMs": 184, "minMs": 173, "maxMs": 211}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "stream", "medianMs": 732, "minMs": 520, "maxMs": 836}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100000, "perTask": 100, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "pstream", "medianMs": 132, "minMs": 130, "maxMs": 140}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "loop", "medianMs": 463, "minMs": 411, "maxMs": 496}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "fixed", "medianMs": 135, "minMs": 133, "maxMs": 145}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "fixed4", "medianMs": 170, "minMs": 157, "maxMs": 189}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "cached", "medianMs": 186, "minMs": 174, "maxMs": 206}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "vt", "medianMs": 178, "minMs": 153, "maxMs": 213}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "stream", "medianMs": 370, "minMs": 357, "maxMs": 426}, {"jdkVersion": "27.0.1", "cores": 16, "tasks": 100, "perTask": 100000, "machine": "desktop", "jdk": 27, "run": "main", "strategy": "pstream", "medianMs": 156, "minMs": 152, "maxMs": 164}]};
 function benchRows(machine, n){
   var d = BENCH.machines[machine];
   return BENCH.methods.map(function(m){
@@ -1995,6 +2417,22 @@ function runTests(){
   t("bench: Little's law predicts the 64-thread pool on the desktop within 10%", function(){ var d = BENCH.data.desktop.filter(function(r){ return r.method === "cf-pool" && r.n === 1000; }); var loop = BENCH.data.desktop.filter(function(r){ return r.method === "loop" && r.jdk === 21; })[0]; var perCall = loop.medianMs / loop.calls; var pred = Math.ceil(1000/64) * 2 * perCall; return d.every(function(r){ return Math.abs(r.medianMs - pred) / pred < 0.1; }) || ("pred "+Math.round(pred)); });
   t("bench: chart renders a bar or failure label for every row", function(){ document.getElementById("b-machine").value = "container"; document.getElementById("b-n").value = "1000"; updateBench(); var svg = document.querySelector("#b-chart svg"); return !!svg && svg.textContent.indexOf("failed") >= 0 && svg.querySelectorAll("rect").length >= 15 || "bad chart"; });
   document.getElementById("b-machine").value = "desktop"; document.getElementById("b-n").value = "1000"; updateBench();
+  var cg = function(c, s){ return CPU.rows.filter(function(r){ return r.machine === c.m && r.jdk === c.j && r.tasks === c.t && r.run === c.run && r.strategy === s; })[0].medianMs; };
+  var cpuCells = function(pred){ var k = {}; CPU.rows.forEach(function(r){ var c = {m: r.machine, j: r.jdk, t: r.tasks, run: r.run}; if(!pred || pred(c)) k[c.m+"|"+c.j+"|"+c.t+"|"+c.run] = c; }); return Object.keys(k).map(function(x){ return k[x]; }); };
+  var cname = function(c){ return c.m+" "+c.j+" "+c.t+" "+c.run; };
+  var mainOnly = function(c){ return c.run === "main"; };
+  t("cpu: 7 strategies x 3 task shapes in each of the 5 result files", function(){ return CPU.rows.length === 105 && cpuCells().length === 15 || (CPU.rows.length + " rows"); });
+  t("cpu: every row came from runs with the same checksum", function(){ return /^9\.25868232913E\+12$/.test(CPU.checksum) || CPU.checksum; });
+  t("cpu: every parallel strategy beat the loop, except platform thread per task at 100,000 tasks on 2 vCPUs", function(){ var bad = []; cpuCells().forEach(function(c){ ["fixed","fixed4","cached","vt","pstream"].forEach(function(s){ var exempt = s === "cached" && c.t === 100000 && c.m === "container"; if(!exempt && !(cg(c, s) < cg(c, "loop"))) bad.push(cname(c)+" "+s); if(exempt && !(cg(c, s) > cg(c, "loop"))) bad.push("exemption no longer needed: "+cname(c)); }); }); return bad.length === 0 || bad.join(", "); });
+  t("cpu: on the desktop, 4 threads per core was slower than 1 per core in all 9 cells", function(){ var c = cpuCells(function(c){ return c.m === "desktop" && c.run === "main"; }); var bad = c.filter(function(x){ return !(cg(x, "fixed4") > cg(x, "fixed")); }); return c.length === 9 && bad.length === 0 || bad.map(cname).join(", "); });
+  t("cpu: with coarse tasks on the desktop, the core-sized pool was fastest or within 5% of fastest", function(){ var bad = cpuCells(function(c){ return c.m === "desktop" && c.run === "main" && c.t !== 100000; }).filter(function(c){ var best = Math.min.apply(null, ["loop","stream","fixed","fixed4","cached","vt","pstream"].map(function(s){ return cg(c, s); })); return cg(c, "fixed") > 1.05 * best; }); return bad.length === 0 || bad.map(cname).join(", "); });
+  t("cpu: platform thread per task was at least 1.5x slower than virtual threads at 100,000 tasks, every machine and JDK", function(){ var bad = cpuCells(function(c){ return c.t === 100000; }).filter(function(c){ return !(cg(c, "cached") >= 1.5 * cg(c, "vt")); }); return bad.length === 0 || bad.map(cname).join(", "); });
+  t("cpu: virtual threads stayed within 1.35x of the core-sized pool in every cell", function(){ var bad = cpuCells().filter(function(c){ return cg(c, "vt") > 1.35 * cg(c, "fixed"); }); return bad.length === 0 || bad.map(cname).join(", "); });
+  t("cpu: parallel stream was the fastest strategy at 100,000 tasks on every machine and JDK", function(){ var bad = cpuCells(function(c){ return c.t === 100000; }).filter(function(c){ return ["loop","stream","fixed","fixed4","cached","vt"].some(function(s){ return cg(c, s) < cg(c, "pstream"); }); }); return bad.length === 0 || bad.map(cname).join(", "); });
+  t("cpu: at 100,000 tasks on the desktop, both work-stealing strategies were at least as fast as the pool; on 2 vCPUs the pool beat virtual threads", function(){ var d = cpuCells(function(c){ return c.t === 100000 && c.m === "desktop"; }).filter(function(c){ return cg(c, "vt") > cg(c, "fixed") || cg(c, "pstream") > cg(c, "fixed"); }); var k = cpuCells(function(c){ return c.t === 100000 && c.m === "container"; }); return d.length === 0 && k.every(function(c){ return cg(c, "fixed") < cg(c, "vt"); }) || (d.map(cname).join(", ") || "container"); });
+  t("cpu: best speed-up under 5x on 16 threads, 1.8x-2.1x on 2 vCPUs", function(){ var bad = cpuCells().filter(function(c){ var b = Math.max.apply(null, ["stream","fixed","fixed4","cached","vt","pstream"].map(function(s){ return cg(c, "loop") / cg(c, s); })); return c.m === "desktop" ? !(b > 1 && b < 5) : !(b >= 1.8 && b <= 2.1); }); return bad.length === 0 || bad.map(cname).join(", "); });
+  t("cpu: the sequential stream stayed within 0.6x-1.7x of the loop and was faster in some cells, slower in others", function(){ var r = cpuCells(mainOnly).map(function(c){ return cg(c, "stream") / cg(c, "loop"); }); return r.every(function(x){ return x > 0.6 && x < 1.7; }) && r.some(function(x){ return x < 1; }) && r.some(function(x){ return x > 1; }) || r.map(function(x){ return x.toFixed(2); }).join(" "); });
+  t("cpu: JDK 27 desktop, 10,000 tasks: virtual threads and the core-sized pool tied (within 2%)", function(){ var c = {m: "desktop", j: 27, t: 10000, run: "main"}; return Math.abs(cg(c, "vt") - cg(c, "fixed")) <= 0.02 * cg(c, "fixed") || (cg(c, "vt") + " vs " + cg(c, "fixed")); });
   var SM = {}; SPRING.forEach(function(r){ SM[r.machine + "|" + r.config] = 1; });
   var sget = function(mc, sc, n, kind, fac){ return SPRING.filter(function(r){ return (r.machine + "|" + r.config) === mc && r.scenario === sc && r.n === n && r.kind === (kind || "main") && r.factory === (fac || "hc5-tuned"); })[0]; };
   var perCall = function(mc){ var l = sget(mc, "rt-loop", 200); return l.medianMs / l.calls; };

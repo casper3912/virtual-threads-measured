@@ -11,12 +11,13 @@ A single-page course for learning and teaching Java virtual threads. Every numbe
 - **Learning track:** why virtual threads exist (with a Little's law calculator), how mounting and pinning work, the API, when they help, an interactive scheduler simulator, pinning by JDK version (21 → 28), limiting concurrency, `ScopedValue`, parallel streams vs `Gatherers.mapConcurrent`, structured concurrency, and observability with JFR and JSON thread dumps.
 - **12 labs**, each with its source and the output captured on JDK 21, 25 and 27.
 - **GET-request benchmark:** a for loop vs `CompletableFuture` (sendAsync, fixed pool, common pool) vs virtual threads vs `StructuredTaskScope` + `ScopedValue`. Every call forwards `X-Request-Id`, `X-Tenant-Id`, `Authorization` and `traceparent`, and every response is checked.
+- **CPU-bound benchmark:** ten million `BigDecimal` additions summed seven ways (for loop, sequential stream, platform pool at 1× and 4× cores, platform thread per task, virtual thread per task, parallel stream), in three task shapes, on JDK 21, 25 and 27. Each strategy has an explainer of what it does underneath.
 - **Spring section:** executor beans, `TaskDecorator` + interceptor header forwarding, RestTemplate → RestClient, Java 17 → 25, Boot 3.5 vs 4.1, and request factories. It includes the HttpClient 5 default-pool trap and connection storms from unbounded virtual-thread fan-out.
 - **Field reports:** each failure the benchmarks hit, linked to OpenJDK, Spring and library discussions of the same problem.
 - **Slides tab:** the 24-slide talk (November 11, 2026) with speaker notes, a keyboard-driven viewer, and the PowerPoint embedded for download. Its charts are built from the same `out/` results as the page.
 - **Teaching kit:** a three-session plan, misconceptions, graded exercises, a review checklist, ArchUnit guardrails and a quiz.
 
-Measurements come from a 2-vCPU Linux cloud machine (OpenJDK 21.0.12, Temurin 17.0.21 / 25.0.5 / 27.0.1) and a Windows 11 desktop (Intel i7-1260P, 16 threads; Temurin 17.0.20.1 / 21.0.11 / 25.0.5, OpenJDK 26).
+Measurements come from a 2-vCPU Linux cloud machine (OpenJDK 21.0.12, Temurin 17.0.21 / 25.0.5 / 27.0.1) and a Windows 11 desktop (Intel i7-1260P, 16 threads; Temurin 17.0.20.1 / 21.0.11 / 25.0.5, OpenJDK 26, Corretto 27.0.1).
 
 ## Layout
 
@@ -28,7 +29,7 @@ Measurements come from a 2-vCPU Linux cloud machine (OpenJDK 21.0.12, Temurin 17
 | `slides/` | The talk: `virtual-threads-measured.pptx`, its generator `build_deck.js` (pptxgenjs), `render.py` (slide images + speaker notes for the Slides tab), `img/` and `notes.json` |
 | `labs/` | The 12 lab programs (`java L4Pinning.java`; L8 needs `--enable-preview --source <N>`) |
 | `guard/` | ArchUnit guardrail rules and the sample package they were tested on |
-| `bench/` | Plain-JDK GET benchmark: echo server, benchmark, ScopedValue variant, `run_bench.py` driver |
+| `bench/` | Plain-JDK GET benchmark: echo server, benchmark, ScopedValue variant, `run_bench.py` driver. CPU-bound benchmark: `BigDecimalBench.java` and its `run_bigdecimal.py` driver |
 | `spring/` | Spring Boot fan-out app (Maven profiles `boot3` = Boot 3.5, `boot4` = Boot 4.1), `run_spring_bench.py`, `storm_probe.py` |
 | `out/` | Every captured output and benchmark result the page is built from |
 | `verify/verify.js` | Opens the page in Chromium and fails on any failing self-test, page error, external request or sideways scroll |
@@ -49,6 +50,9 @@ Measurements come from a 2-vCPU Linux cloud machine (OpenJDK 21.0.12, Temurin 17
 
     # plain-JDK GET benchmark (about 5 minutes)
     python3 bench/run_bench.py --jdk 21=<jdk21 home> --jdk 25=<jdk25 home> --out out/bench-desktop.jsonl
+
+    # CPU-bound BigDecimal benchmark (about 80 seconds per JDK on a 16-thread desktop)
+    python3 bench/run_bigdecimal.py --machine desktop --jdk 21=<jdk21 home> --jdk 27=<jdk27 home>
 
     # Spring benchmark: build both jars, then run (about 13 minutes)
     cd spring && mvn -Pboot3 clean package && mkdir -p dist && cp target/fanout-boot3.jar dist/
