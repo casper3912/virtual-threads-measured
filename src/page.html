@@ -110,8 +110,8 @@ footer{margin-top:60px;border-top:1px solid var(--line);padding:24px 0 60px;colo
 <header class="hero" id="top">
   <div class="wrap">
     <h1>Virtual Threads, Measured</h1>
-    <p class="sub">A single-page course for <em>learning</em> and <em>teaching</em> Java virtual threads. Every timing on this page came from a program you can read here, run on real JDKs (21, 25 and 27) before the page was built.</p>
-    <p class="small">Tags: <span class="tag m">MEASURED</span> ran here, output shown · <span class="tag s">SOURCED</span> from a JEP or official doc (see <a href="#sources">Sources</a>) · <span class="tag i">INFERRED</span> reasoning, not tested. Machine for all measurements: {{MACHINE}}.</p>
+    <p class="sub">A single-page course for <em>learning</em> and <em>teaching</em> Java virtual threads. Every timing on this page came from a program you can read here, run on real JDKs (17, 21, 25, 26 and 27) before the page was built.</p>
+    <p class="small">Tags: <span class="tag m">MEASURED</span> ran here, output shown · <span class="tag s">SOURCED</span> from a JEP or official doc (see <a href="#sources">Sources</a>) · <span class="tag i">INFERRED</span> reasoning, not tested. Two machines ran the measurements: {{MACHINE}}. Each result names its machine.</p>
     <div class="tracks">
       <div class="track"><b>Learning it?</b> Read top to bottom. About 90 minutes with the labs.
         <ol><li><a href="#why">Why they exist</a></li><li><a href="#model">The mental model</a></li><li><a href="#sim">Play with the simulator</a></li><li><a href="#pinning">Pinning by JDK version</a></li><li><a href="#prod">Using them in production</a></li><li><a href="#bench">GET requests: loop vs CompletableFuture vs virtual threads</a></li><li><a href="#cpu">CPU-bound work: BigDecimal summation seven ways</a></li><li><a href="#slides">The talk: slides with speaker notes</a></li><li><a href="#spring">Spring: executor beans, RestTemplate → RestClient, Java 17 → 25</a></li><li><a href="#field">What we hit, and what others have reported</a></li><li><a href="#quiz">Check yourself</a></li></ol></div>
@@ -122,7 +122,7 @@ footer{margin-top:60px;border-top:1px solid var(--line);padding:24px 0 60px;colo
 </header>
 <nav class="top" aria-label="Sections"><div class="wrap" role="tablist" aria-label="Page views">
   <a class="tab" role="tab" id="tab-course" href="#top" aria-controls="course" aria-selected="true">Course</a><a class="tab" role="tab" id="tab-slides" href="#slides" aria-controls="slides" aria-selected="false">Slides</a><span class="sep sec">|</span>
-  <a class="sec" href="#why">Why</a><a class="sec" href="#model">Model</a><a class="sec" href="#api">API</a><a class="sec" href="#fit">Fit</a><a class="sec" href="#sim">Simulator</a><a class="sec" href="#pinning">Pinning</a><a class="sec" href="#limits">Limits</a><a class="sec" href="#context">Context</a><a class="sec" href="#mapconcurrent">Streams</a><a class="sec" href="#structured">Structured</a><a class="sec" href="#observe">Observe</a><a class="sec" href="#prod">Production</a><a class="sec" href="#bench">GET bench</a><a class="sec" href="#cpu">CPU bench</a><a class="sec" href="#spring">Spring</a><a class="sec" href="#field">Field reports</a><span class="sep sec">|</span><a class="sec" href="#teach">Teach</a><a class="sec" href="#quiz">Quiz</a><a class="sec" href="#glossary">Glossary</a><a class="sec" href="#sources">Sources</a><a class="sec" href="#colophon">Tests</a>
+  <a class="sec" href="#why">Why</a><a class="sec" href="#model">Model</a><a class="sec" href="#api">API</a><a class="sec" href="#fit">Fit</a><a class="sec" href="#sim">Simulator</a><a class="sec" href="#pinning">Pinning</a><a class="sec" href="#limits">Limits</a><a class="sec" href="#context">Context</a><a class="sec" href="#mapconcurrent">Streams</a><a class="sec" href="#structured">Structured</a><a class="sec" href="#observe">Observe</a><a class="sec" href="#prod">Production</a><a class="sec" href="#bench">GET bench</a><a class="sec" href="#cpu">CPU bench</a><a class="sec" href="#spring">Spring</a><a class="sec" href="#field">Field reports</a><span class="sep sec">|</span><a class="sec" href="#faq">Q&amp;A</a><a class="sec" href="#teach">Teach</a><a class="sec" href="#quiz">Quiz</a><a class="sec" href="#glossary">Glossary</a><a class="sec" href="#sources">Sources</a><a class="sec" href="#colophon">Tests</a>
 </div></nav>
 
 <main class="wrap" id="course" role="tabpanel" aria-labelledby="tab-course">
@@ -283,7 +283,7 @@ List&lt;Price&gt; prices = ids.stream()
 <div class="cmd">JDK 27: the same file fails to compile. Changing one line (catch <code>java.util.concurrent.ExecutionException</code>) gives:</div>
 <pre class="out"><code>{{OUT:L8-27}}</code></pre>
 </div>
-<div class="callout warn">The API changed in every release from 21 to 27, and this page caught one of those changes by compiling. It's now settled: JEP 543 makes structured concurrency final in JDK 28 (due March 2027) with exactly the JDK 27 API shown above. On JDK 25 it's still a preview feature. Use it in experiments written against the JDK 27 shape, or through a backport library, and expect to adopt it for real on JDK 28 or the next LTS. <span class="tag m">MEASURED</span> <span class="tag s">SOURCED</span></div>
+<div class="callout warn">The API was re-previewed unchanged in JDK 22–24, redesigned in 25, and adjusted again in 26 and 27. This page caught the JDK 27 change by compiling. It's now settled: JEP 543 makes structured concurrency final in JDK 28 (due March 2027) with exactly the JDK 27 API shown above. On JDK 25 it's still a preview feature. Use it in experiments written against the JDK 27 shape, or through a backport library, and expect to adopt it for real on JDK 28 or the next LTS. <span class="tag m">MEASURED</span> <span class="tag s">SOURCED</span></div>
 
 <h2 id="observe">10. Seeing virtual threads</h2>
 <div class="lab"><h4>Lab 9 · JSON thread dump <span class="tag m">MEASURED</span></h4>
@@ -299,7 +299,7 @@ List&lt;Price&gt; prices = ids.stream()
 <pre class="out"><code>{{OUT:L10-25}}</code></pre>
 <p class="small">The <code>jdk.VirtualThreadPinned</code> event fires when a virtual thread blocks while pinned for longer than the threshold (20 ms by default). This is the signal to put in a load test or CI run (see <a href="#guardrails">guardrails</a>).</p>
 </div>
-<div class="callout warn"><b>An observer effect we hit.</b> On JDK 21, the old diagnostic flag <code>-Djdk.tracePinnedThreads=short</code> printed the pinning stack trace, but it also changed the result: Lab 4 took about 415 ms with tracing on (three runs) versus 806–811 ms without. We didn't work out why. The practical lesson is to measure pinning with JFR and to time the workload with tracing off. <span class="tag m">MEASURED</span></div>
+<div class="callout warn"><b>An observer effect we hit.</b> On JDK 21, the old diagnostic flag <code>-Djdk.tracePinnedThreads=short</code> printed the pinning stack trace, but it also changed the result: Lab 4 took about 415 ms with tracing on (three runs) versus 806–811 ms without. §15 has the likely cause: JDK-8322846 found that the flag's stack printing could block on <code>System.out</code>'s lock, which changes scheduling. The practical lesson is to measure pinning with JFR and to time the workload with tracing off. <span class="tag m">MEASURED</span></div>
 <pre class="out"><code>{{OUT:L4-21-trace}}</code></pre>
 
 <h2 id="prod">11. Using them in production</h2>
@@ -313,8 +313,8 @@ List&lt;Price&gt; prices = ids.stream()
 <li><b>Measure before switching</b>: requests in flight, pool saturation, p99 latency. If threads were never your bottleneck, nothing will improve.</li>
 <li><b>Turn them on for I/O-bound entry points</b> (the Spring property, or <code>newVirtualThreadPerTaskExecutor</code> where you own the executor).</li>
 <li><b>Replace pool-as-limiter with semaphores</b> at the scarce resource. Delete pools of virtual threads.</li>
-<li><b>Audit <code>ThreadLocal</code> caches</b>: per-thread formatters, buffers, and connection holders. Move request context to <code>ScopedValue</code> on 25.</li>
-<li><b>Load-test with JFR on</b> and alert on <code>jdk.VirtualThreadPinned</code>. On 21, expect hits in <code>synchronized</code> and fix the hot ones; on 25, any hit is a native frame.</li>
+<li><b>Audit <code>ThreadLocal</code> caches</b>: per-thread formatters, buffers, and connection holders. Carry request context across executor hops explicitly (capture it, or a <code>TaskDecorator</code> in Spring). <code>ScopedValue</code> doesn't cross an executor hop: it reached 0 of 200 calls in §8 and §12. Use it for values bound inside one request's call tree and its <code>StructuredTaskScope</code> forks.</li>
+<li><b>Load-test with JFR on</b> and alert on <code>jdk.VirtualThreadPinned</code>. On 21, expect hits in <code>synchronized</code> and fix the hot ones; on 25, expect hits mostly from native code (a JNI or FFM call that comes back into Java and blocks), plus the rare class-loading and class-initialization cases JEP 491 still lists.</li>
 <li><b>Keep CPU-heavy work on a bounded platform pool</b> so it can't monopolize carriers.</li>
 </ol>
 
@@ -325,6 +325,8 @@ List&lt;Price&gt; prices = ids.stream()
 {{INCLUDE:spring-section.html}}
 
 {{INCLUDE:field-section.html}}
+
+{{INCLUDE:faq-section.html}}
 
 <h2 id="teach">16. Teaching kit</h2>
 <p>Written for a lunch-and-learn series or a team onboarding, for developers who already know <code>ExecutorService</code>. Everything runs with nothing but a JDK: <code>java File.java</code> compiles and runs a single source file (JDK 11+), so there's no build tool to set up.</p>
@@ -401,6 +403,7 @@ List&lt;Price&gt; prices = ids.stream()
 <div class="cmd">Run against a sample package with one <code>ThreadLocal</code> field and one <code>synchronized</code> method (ArchUnit 1.4.1, JDK 25):</div>
 <pre class="out fail"><code>{{OUT:L11-25}}</code></pre>
 <p class="small">The second rule only belongs in codebases still on JDK 21–23. A third class in the sample holding a <code>ScopedValue</code> passed both rules.</p>
+<p class="small">As written, the first rule also flags the one <code>ThreadLocal</code> you should keep: the holder for the forwarded headers in §14's design. Use it as a review list, and exempt your request-context holder by name so the rule catches caches rather than context. <span class="tag i">INFERRED</span></p>
 </div>
 <p>The second guardrail is Lab 10 turned into a test: run the load test under a JFR recording and fail the build if any <code>jdk.VirtualThreadPinned</code> event appears. It catches pinning in libraries, which a static rule can't see.</p>
 
@@ -459,6 +462,13 @@ List&lt;Price&gt; prices = ids.stream()
 <li><a href="https://www.happycoders.eu/java/structured-concurrency-structuredtaskscope/">HappyCoders: Structured Concurrency with StructuredTaskScope</a> (updated June 2026).</li>
 <li><a href="https://openjdk.org/jeps/485">JEP 485: Stream Gatherers</a> (final in JDK 24). <code>Gatherers.mapConcurrent</code>.</li>
 <li><a href="https://openjdk.org/jeps/506">JEP 506: Scoped Values</a> (JDK 25). Finality also confirmed by Lab 7 compiling on 25 without preview flags.</li>
+<li><a href="https://github.com/brettwooldridge/HikariCP#gear-configuration-knobs-baby">HikariCP: configuration</a>. <code>maximumPoolSize</code> 10 and <code>connectionTimeout</code> 30 s by default; <code>getConnection()</code> blocks up to the timeout when the pool is empty.</li>
+<li><a href="https://docs.spring.io/spring-boot/3.5/reference/features/task-execution-and-scheduling.html">Spring Boot 3.5 reference: Task Execution and Scheduling</a>. A custom Executor bean makes the auto-configured one back off and runs <code>@EnableAsync</code> work.</li>
+<li><a href="https://openjdk.org/jeps/486">JEP 486: Permanently Disable the Security Manager</a> (JDK 24).</li>
+<li><a href="https://openjdk.org/jeps/498">JEP 498: Warn upon Use of Memory-Access Methods in sun.misc.Unsafe</a> (JDK 24).</li>
+<li><a href="https://openjdk.org/jeps/472">JEP 472: Prepare to Restrict the Use of JNI</a> (JDK 24).</li>
+<li><a href="https://openjdk.org/jeps/451">JEP 451: Prepare to Disallow the Dynamic Loading of Agents</a> (JDK 21).</li>
+<li><a href="https://docs.oracle.com/en/java/javase/25/docs/specs/man/java.html">The java command</a>. <code>-Xss</code> defaults to 1 MB on 64-bit Linux.</li>
 </ol>
 
 </main>

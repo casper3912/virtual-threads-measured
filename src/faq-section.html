@@ -1,0 +1,44 @@
+<h2 id="faq">Questions people ask</h2>
+<p>Questions reviewers and readers raised that the sections above don't answer directly. Each answer is tagged with what it rests on.</p>
+
+<h3 id="faq-jdbc">Does a normal Spring app with JDBC and HikariCP still pin on Java 25?</h3>
+<p>Mostly no. Since JDK 24 (JEP 491), <code>synchronized</code> and <code>Object.wait()</code> no longer pin, and that covers the locking inside most JDBC drivers and pools. What's left is native code (§6). <span class="tag s">SOURCED</span></p>
+<p>What does change is where requests wait. HikariCP holds 10 connections by default, and a request that can't get one blocks in <code>getConnection()</code> for up to <code>connectionTimeout</code> (30 s by default), then fails. With a 64-thread pool, the pool was the queue in front of the database. With a virtual thread per request, the queue moves into Hikari. Size the Hikari pool from what the database can take, not from a thread count, and watch its pending count. It's the same backpressure lesson as the connection storm in §14. <span class="tag s">SOURCED</span> <span class="tag i">INFERRED</span></p>
+
+<h3 id="faq-async">Which executor do <code>@Async</code> methods use once I define my own Executor beans?</h3>
+<p>In Spring Boot 3.5, defining any custom <code>Executor</code> bean makes the auto-configured one back off, and your bean runs <code>@EnableAsync</code> work. Spring MVC still looks for a bean named <code>applicationTaskExecutor</code>. <code>spring.threads.virtual.enabled=true</code> switches the executors Boot builds for you, and Tomcat's request threads, to virtual threads. It doesn't change beans you built yourself. With more than one executor, name the one you mean: <code>@Async("fanoutExecutor")</code>. <span class="tag s">SOURCED</span></p>
+
+<h3 id="faq-monitor">What do I monitor instead of thread-pool saturation?</h3>
+<p>"Active threads" stops meaning anything when every task gets its own thread. Watch the places where requests now wait:</p>
+<ul>
+<li>permits in use and wait time at each semaphore or concurrency limit (§7);</li>
+<li>Hikari's pending connections and acquire time (<code>hikaricp.connections.pending</code> and <code>hikaricp.connections.acquire</code> in Micrometer);</li>
+<li>the HTTP client pool's leased and pending connections;</li>
+<li>request latency percentiles.</li>
+</ul>
+<p>Keep JFR's <code>jdk.VirtualThreadPinned</code> on in load tests (§10). <span class="tag s">SOURCED</span> <span class="tag i">INFERRED</span></p>
+
+<h3 id="faq-memory">How much memory does a virtual thread take?</h3>
+<p>About 1 KB of heap while blocked with a shallow stack, and a few KB with a deeper one. Its stack lives on the heap and grows with the call depth. A platform thread instead reserves a native stack, 1 MB by default on 64-bit Linux (<code>-Xss</code>). <span class="tag m">MEASURED</span> <span class="tag s">SOURCED</span></p>
+<div class="lab"><h4>Lab 13 · Heap per blocked virtual thread <span class="tag m">MEASURED</span></h4>
+<details><summary>Source: labs/L13Memory.java</summary><pre><code>{{SRC:L13Memory.java}}</code></pre></details>
+<p class="small">Windows desktop, 100,000 threads per run, each run in a fresh JVM:</p>
+<pre class="out">{{OUT:L13-desktop}}</pre>
+<p class="small">Heap growth after GC, divided by the thread count, so it includes the <code>Thread</code> object and the list holding it. One run per row.</p>
+</div>
+
+<h3 id="faq-contention">Does a contended <code>synchronized</code> block pin on Java 25?</h3>
+<p>No. Since JEP 491 a virtual thread waiting to enter a monitor unmounts like any other blocked thread. But contention still serializes: if every request goes through one lock, one call runs at a time, however many threads you have. Pinning wastes a carrier; contention caps throughput at the lock. Lab 4 and the GET benchmark give each task its own lock, so they show pinning, not contention (§12). <span class="tag s">SOURCED</span> <span class="tag i">INFERRED</span></p>
+
+<h3 id="faq-scoped">Should we replace <code>ThreadLocal</code> with <code>ScopedValue</code>?</h3>
+<p>Only for values used inside one request's call tree. A <code>ScopedValue</code> is visible to code called from the binding and to <code>StructuredTaskScope</code> forks. It reached 0 of 200 calls through an executor (§8, §12), and an executor is how Spring's executor beans hand work off. For forwarded headers, keep the capture-and-decorate pattern from §14. <span class="tag m">MEASURED</span></p>
+
+<h3 id="faq-upgrade">How much work is the 17 → 25 upgrade itself?</h3>
+<p>Treat it as a compatibility job, separate from virtual threads. On the JDK side, check for these:</p>
+<ul>
+<li>The Security Manager is permanently disabled (JEP 486, JDK 24).</li>
+<li>JDK 24 warns when code uses <code>sun.misc.Unsafe</code> memory access (JEP 498) or JNI (JEP 472).</li>
+<li>JDK 21 warns when an agent is loaded at run time (JEP 451), which Mockito's inline mocks do.</li>
+</ul>
+<p><span class="tag s">SOURCED</span></p>
+<p>On the build side, the compiler plugin, Lombok, Mockito/ByteBuddy, JaCoCo and other bytecode tools need releases that read Java 25 class files. In our runs the same jar with the same pool took the same time on 17 and 25 (§14). So ship the JDK change on its own, and measure before changing executors. <span class="tag m">MEASURED</span> <span class="tag i">INFERRED</span></p>

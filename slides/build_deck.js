@@ -244,15 +244,15 @@ const AX = { catAxisLabelColor: HEX.ink, valAxisLabelColor: HEX.mute, catAxisLab
     s.addText(v, { objectName: `Release ${v} label`, isTextBox: true, x: 0.6, y, w: 2.0, h: 0.7, fontSize: 18, bold: true, color: lts ? C.background1 : C.text2, align: "center", valign: "middle", margin: 0 });
     para(s, `Release ${v} text`, [{ text: d }], 2.85, y, 9.85, 0.7, { fontSize: 16, valign: "middle" });
   });
-  s.addNotes("Two LTS releases matter for us: 21 and 25. Everything that made 21 risky, pinning in synchronized, is fixed in 24 and therefore in 25. Structured concurrency is the one API to wait on: it changed shape in nearly every preview, and it becomes final in JDK 28 with the JDK 27 API.");
+  s.addNotes("Two LTS releases matter for us: 21 and 25. Everything that made 21 risky, pinning in synchronized, is fixed in 24 and therefore in 25. Structured concurrency is the one API to wait on: it was re-previewed unchanged in 22 to 24, redesigned in 25, adjusted in 26 and 27, and becomes final in JDK 28 with the JDK 27 API.");
 }
 
 // ------------------------------------------------------------------ GET benchmark section
 {
   const s = slide("Section Dark", "GET benchmark");
-  s.addText("A batch of GET requests, five ways", { placeholder: "title" });
+  s.addText("A batch of GET requests, six ways", { placeholder: "title" });
   s.addText("Loop, CompletableFuture and virtual threads, forwarding four headers on every call", { placeholder: "body" });
-  s.addNotes("Now the comparison most teams actually need.");
+  s.addNotes("Now the comparison most teams actually need. The site runs eight methods; the next slide charts the six that matter here, and the other two come up on the failures slide and in the header slide.");
 }
 {
   const s = slide("Title Only", "GET benchmark");
@@ -277,7 +277,7 @@ const AX = { catAxisLabelColor: HEX.ink, valAxisLabelColor: HEX.mute, catAxisLab
     "Pinning is the version difference: the synchronized wrapper took 3.9 s on 21, 0.44 s on 26.",
     "The 64-thread pool lands where Little's law says: 16 waves × 62 ms.",
   ], 14), 8.9, 4.15, 3.8, 2.6);
-  s.addNotes(`Each task makes two dependent GETs against a local server that waits 20 ms. The for loop took ${(loop.medianMs/1000).toFixed(1)} seconds for just 400 calls. Every concurrent style handled 2,000 calls in well under a second, except the synchronized wrapper on 21, which pinned: ${bench(21,"vt-sync",1000).medianMs} ms versus ${bench(26,"vt-sync",1000).medianMs} on 26. The case for virtual threads isn't raw speed. It's that the code stays a plain loop of blocking calls.`);
+  s.addNotes(`Each task makes two dependent GETs against a local server that waits 20 ms. The for loop took ${(loop.medianMs/1000).toFixed(1)} seconds for just 400 calls. Every concurrent style on this chart handled 2,000 calls in about a second or less. The 64-thread pool sits at about a second because Little's law says it must: 16 waves of 62 ms. The exception is the synchronized wrapper on 21, which pinned: ${bench(21,"vt-sync",1000).medianMs} ms versus ${bench(26,"vt-sync",1000).medianMs} on 26. Each task had its own lock there, so that's pinning, not contention. A lock shared by every task would serialize calls on any JDK. One method isn't on the chart because it didn't finish: the common pool, which is the next failures slide. The case for virtual threads isn't raw speed. It's that the code stays a plain loop of blocking calls.`);
 }
 {
   const s = slide("Title Only", "GET benchmark");
@@ -353,7 +353,7 @@ const AX = { catAxisLabelColor: HEX.ink, valAxisLabelColor: HEX.mute, catAxisLab
       { text: "Fix: ", options: { bold: true, fontSize: 15, color: C.accent4 } }, { text: fix, options: { fontSize: 15 } },
     ], x + 0.3, 2.6, 5.35, 3.8);
   });
-  s.addNotes("Both of these have field reports behind them, listed in the references. The common-pool failure also shows up in production with blocking Redis calls inside parallel streams. The HttpClient thread count was explained by the JDK networking team on their mailing list: the default executor is a cached thread pool.");
+  s.addNotes("Two failures, before Spring was involved. One: CompletableFuture.runAsync with no executor runs on the common pool, and at 1,000 blocking tasks it gave up with RejectedExecutionException. Always pass an executor. Two: java.net.http.HttpClient quietly runs its own cached thread pool even when you call it from virtual threads, so give it a virtual-thread executor. Both of these have field reports behind them, listed in the references. The common-pool failure also shows up in production with blocking Redis calls inside parallel streams. The HttpClient thread count was explained by the JDK networking team on their mailing list: the default executor is a cached thread pool.");
 }
 
 // ------------------------------------------------------------------ Spring section
@@ -362,7 +362,7 @@ const J17 = "Java 17 + Boot 3.5", J25B4 = "Java 25 + Boot 4.1", J25B3 = "Java 25
   const s = slide("Section Dark", "Spring migration");
   s.addText("Our path: Java 17 + RestTemplate → Java 25 + RestClient", { placeholder: "title" });
   s.addText("Spring executor beans, headers on every call, Boot 3.5 and 4.1", { placeholder: "body" });
-  s.addNotes("This section is a real Spring Boot app: a request comes in with four headers, the controller fans out GETs, and every response is checked. It ran on Java 17 with Boot 3.5, Java 25 with Boot 3.5, and Java 25 with Boot 4.1. Step 5 of the migration order is the property spring.threads.virtual.enabled=true.");
+  s.addNotes("This section is a real Spring Boot app: a request comes in with four headers, the controller fans out GETs, and every response is checked. It ran on Java 17 with Boot 3.5, Java 25 with Boot 3.5, and Java 25 with Boot 4.1. Later in the migration order, the property spring.threads.virtual.enabled=true comes near the end, after the executor beans are in place.");
 }
 {
   const s = slide("Title Only", "Spring migration");
@@ -390,7 +390,7 @@ const J17 = "Java 17 + Boot 3.5", J25B4 = "Java 25 + Boot 4.1", J25B3 = "Java 25
     "e.setTaskDecorator(forwardHeaders);",
     "e.setConcurrencyLimit(200);   // not optional",
   ].join("\n"), 6.6, 1.6, 6.1, 4.9, 14);
-  s.addNotes(`Without the decorator, headers arrived on 0 of 100 calls, on the pool and on virtual threads, on both machines. With it, every call had all four. Calling code doesn't change between the two executor beans: CompletableFuture.runAsync(task, fanoutExecutor). The concurrency limit on the virtual-thread bean matters; that's two slides from now.`);
+  s.addNotes(`Without the decorator, headers arrived on 0 of 100 calls, on the pool and on virtual threads, on both machines. With it, every call had all four. Calling code doesn't change between the two executor beans: CompletableFuture.runAsync(task, fanoutExecutor). The concurrency limit on the virtual-thread bean matters; that's the connection-storm slide coming up.`);
 }
 {
   const s = slide("Title Only", "Spring migration");
@@ -438,7 +438,7 @@ const J17 = "Java 17 + Boot 3.5", J25B4 = "Java 25 + Boot 4.1", J25B3 = "Java 25
     "RestClient.builder().requestFactory(",
     "    new HttpComponentsClientHttpRequestFactory(http))",
   ].join("\n"), 6.9, 4.35, 5.8, 2.35, 12);
-  s.addNotes(`This is the biggest risk in the RestTemplate to RestClient migration. With HttpClient 5 on the classpath, RestClient silently switches to a pool of 5 connections per host. The same 2,000 calls took ${(vals[0]/1000).toFixed(1)} seconds instead of ${vals[3]} ms. A Spring Boot issue and a published write-up report the same thing. Always pass an explicitly configured request factory, and add idle eviction when you size the pool up.`);
+  s.addNotes(`This is the biggest risk in the RestTemplate to RestClient migration. With HttpClient 5 on the classpath, RestClient silently switches to a pool of 5 connections per host. The same 2,000 calls took ${(vals[0]/1000).toFixed(1)} seconds instead of ${vals[3]} ms. That's close to the for loop's time from earlier, but it's a different test: five times as many calls, held back by 5 connections instead of by one thread. A Spring Boot issue and a published write-up report the same thing. Always pass an explicitly configured request factory, and add idle eviction when you size the pool up.`);
 }
 {
   const s = slide("Title Only", "Spring migration");
@@ -581,7 +581,7 @@ REFS.forEach(([group, list], gi) => {
     { text: "Site, labs and raw results:", options: { breakLine: true } },
     { text: "casper3912.github.io/virtual-threads-measured", options: { hyperlink: { url: "https://casper3912.github.io/virtual-threads-measured/" }, bold: true, color: C.accent2 } },
   ], { placeholder: "body" });
-  s.addNotes("The site has everything from this talk: the 11 labs with captured output, the scheduler simulator, the benchmark code you can rerun on your own machine, and a teaching kit with exercises and a quiz.");
+  s.addNotes("The site has everything from this talk: the 13 labs with captured output, the scheduler simulator, the benchmark code you can rerun on your own machine, and a teaching kit with exercises and a quiz. Likely questions, with answers on the site's Q&A section: JDBC and Hikari on 25 don't pin, but the queue moves into Hikari's 10-connection pool, so size it from what the database can take. @Async uses your custom Executor bean once you define one; name it explicitly. Monitor semaphore waits, Hikari pending connections and latency percentiles instead of pool saturation. A blocked virtual thread is about 1 KB of heap. The 17 to 25 upgrade itself is a compatibility job: Security Manager disabled, Unsafe and JNI warnings, and bytecode tools like Lombok, Mockito and JaCoCo need current versions.");
 }
 
 (async () => {

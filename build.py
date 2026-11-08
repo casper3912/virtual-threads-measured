@@ -396,7 +396,7 @@ page = re.sub(r"\{\{OUT:([^}]+)\}\}", lambda m: out(m.group(1)), page)
 page = re.sub(r"\{\{OUT_INLINE:([^}]+)\}\}", lambda m: "<code>" + out(m.group(1)).replace("\n", " · ") + "</code>", page)
 page = page.replace("{{QUIZ_HTML}}", quiz_html())
 page = page.replace("{{QUIZ_JSON}}", json.dumps(QUIZ, ensure_ascii=False).replace("</", "<\\/"))
-page = page.replace("{{MACHINE}}", "a 2-vCPU Intel Xeon @ 2.30 GHz Linux container")
+page = page.replace("{{MACHINE}}", "a 2-vCPU Intel Xeon @ 2.30 GHz Linux container (\"cloud\") and a 16-thread Windows desktop")
 page = page.replace("{{JDKS}}", "21.0.12 (Ubuntu), Temurin 25.0.5 LTS and Temurin 27.0.1")
 # The build date lives in a file, not the clock, so CI can rebuild byte-for-byte and diff against the committed page.
 page = page.replace("{{BUILT}}", (ROOT / "src/build-date.txt").read_text(encoding="utf-8").strip())

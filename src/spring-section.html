@@ -59,7 +59,7 @@ try { chain.doFilter(request, response); } finally { ForwardedHeaders.set(null);
 <p class="small">Calling code doesn't change between the two: <code>CompletableFuture.runAsync(task, fanoutExecutor)</code>. On Java 25 you also get virtual threads for incoming requests with <code>spring.threads.virtual.enabled=true</code>. Watch Spring Boot's auto-configured <code>applicationTaskExecutor</code>: by default it has 8 core threads and an unbounded queue, so it never grows past 8. Spring Boot also backs off it entirely once you define your own <code>Executor</code> bean. <span class="tag s">SOURCED</span></p>
 
 <h3 id="spring-results">Results: client × executor × stack</h3>
-<p>Median of three runs after a warm-up, measured inside the controller. Every cell forwarded all four headers on every call unless marked. HttpClient 5 with a sized pool is the request factory for all of these. <span class="tag m">MEASURED</span></p>
+<p>Median of three runs after a warm-up, measured inside the controller. Every cell forwarded all four headers on every call unless marked. HttpClient 5 with a sized pool is the request factory for all of these. On the Windows desktop the test server ran on Java 25, which caps a server's connection backlog at 200 on Windows (fixed in 26, §15). "Connection refused" cells come from unbounded fan-out meeting that cap; see the connection storm section below. <span class="tag m">MEASURED</span></p>
 <p><b>Windows desktop</b></p>
 {{SPRING_MAIN:desktop}}
 <p><b>Cloud (2 vCPU, Linux)</b></p>

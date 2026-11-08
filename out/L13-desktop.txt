@@ -1,0 +1,8 @@
+JDK 21
+100,000 virtual threads blocked at stack depth 0: 1,045 bytes of heap each
+JDK 21
+100,000 virtual threads blocked at stack depth 100: 2,882 bytes of heap each
+JDK 25
+100,000 virtual threads blocked at stack depth 0: 880 bytes of heap each
+JDK 25
+100,000 virtual threads blocked at stack depth 100: 2,618 bytes of heap each

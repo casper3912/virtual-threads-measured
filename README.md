@@ -9,7 +9,8 @@ A single-page course for learning and teaching Java virtual threads. Every numbe
 ## What's in it
 
 - **Learning track:** why virtual threads exist (with a Little's law calculator), how mounting and pinning work, the API, when they help, an interactive scheduler simulator, pinning by JDK version (21 → 28), limiting concurrency, `ScopedValue`, parallel streams vs `Gatherers.mapConcurrent`, structured concurrency, and observability with JFR and JSON thread dumps.
-- **12 labs**, each with its source and the output captured on JDK 21, 25 and 27.
+- **13 labs**, each with its source and its captured output (JDK 21, 25 and 27; Lab 13 on the Windows desktop).
+- **Questions people ask**: JDBC and Hikari on 25, `@Async` executor selection, what to monitor, memory per thread, contention vs pinning, and the 17 → 25 upgrade.
 - **GET-request benchmark:** a for loop vs `CompletableFuture` (sendAsync, fixed pool, common pool) vs virtual threads vs `StructuredTaskScope` + `ScopedValue`. Every call forwards `X-Request-Id`, `X-Tenant-Id`, `Authorization` and `traceparent`, and every response is checked.
 - **CPU-bound benchmark:** ten million `BigDecimal` additions summed seven ways (for loop, sequential stream, platform pool at 1× and 4× cores, platform thread per task, virtual thread per task, parallel stream), in three task shapes, on JDK 21, 25 and 27. Each strategy has an explainer of what it does underneath.
 - **Spring section:** executor beans, `TaskDecorator` + interceptor header forwarding, RestTemplate → RestClient, Java 17 → 25, Boot 3.5 vs 4.1, and request factories. It includes the HttpClient 5 default-pool trap and connection storms from unbounded virtual-thread fan-out.
